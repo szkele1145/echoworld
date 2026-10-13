@@ -11,6 +11,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,8 +48,19 @@ public final class EchoWorldRecorder {
         UUID id = sp.getUUID();
         RecordingSession session = SESSIONS.remove(id);
         if (session != null) {
-            LOGGER.info("[EchoWorld] Recording stopped for {} ({} events)",
-                    sp.getName().getString(), session.eventCount());
+            // 落盘：.echoworld/recordings/<uuid>-<startTick>.ecw（core 二进制格式，magic 0xE7C0）
+            try {
+                byte[] data = session.export();
+                Path dir = sp.serverLevel().getServer().getServerDirectory()
+                        .resolve("echoworld").resolve("recordings");
+                java.nio.file.Files.createDirectories(dir);
+                Path f = dir.resolve(id + "-" + session.startTick() + ".ecw");
+                java.nio.file.Files.write(f, data);
+                LOGGER.info("[EchoWorld] Recording saved {} ({} events, {} bytes)",
+                        f.getFileName(), session.eventCount(), data.length);
+            } catch (Exception e) {
+                LOGGER.error("[EchoWorld] Failed to save recording for {}", id, e);
+            }
         }
     }
 
