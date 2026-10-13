@@ -1,0 +1,56 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.78'
+}
+
+version = '0.1.0'
+group = 'dev.echoworld'
+base { archivesName = 'echoworld' }
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+neoForge {
+    version = project.neo_version
+
+    runs {
+        client { client() }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        echoworld { sourceSet sourceSets.main }
+    }
+}
+
+dependencies {
+    implementation project(':core')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+processResources {
+    var replaceProperties = [
+            minecraft_version      : '1.21.1',
+            minecraft_version_range: '[1.21.1,1.22)',
+            neo_version            : project.neo_version,
+            neo_version_range      : '[21.1.0,)',
+            mod_id                 : 'echoworld',
+            mod_name               : 'EchoWorld',
+            mod_license            : 'All Rights Reserved',
+            mod_version            : project.version,
+            mod_authors            : 'EchoWorld',
+            mod_description        : 'Full behavior recording and replay for Minecraft worlds: block changes, entity movement, and container operations.'
+    ]
+    inputs.properties replaceProperties
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand replaceProperties
+    }
+}

@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="All Rights Reserved"
+issueTrackerURL=""
+
+[[mods]]
+modId="echoworld"
+version="${mod_version}"
+displayName="EchoWorld"
+authors="EchoWorld"
+description='''
+Full behavior recording and replay for Minecraft worlds: block changes, entity movement, and container operations.
+'''
+
+[[dependencies.echoworld]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.0,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.echoworld]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.22)"
+ordering="NONE"
+side="BOTH"

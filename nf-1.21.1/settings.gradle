@@ -1,0 +1,19 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'NeoForge'
+            url = uri('https://maven.neoforged.net/releases')
+        }
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
+rootProject.name = 'echoworld-nf-1.21.1'
+
+// 单独构建本平台时，复用仓库根的 core 模块（Gradle 9 要求被 include 的目录必须存在）
+include 'core'
+project(':core').projectDir = file('../core')
