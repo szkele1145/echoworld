@@ -7,7 +7,6 @@ import dev.echoworld.core.event.EventDecoder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -16,10 +15,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * /echoreplay 命令：从 .echoworld/recordings/ 加载 .ecw 录制并回放给命令执行者。
+ * /echoreplay 命令：加载与校验 .ecw 录制。
  *
- * <p>当前阶段：验证录制文件可读（解析事件数并反馈）。
- * 世界内视觉重现由 ReplayVisualizer（下一迭代）接手。</p>
+ * <p>子命令：
+ * <ul>
+ *   <li>/echoreplay gui —— 提示 GUI 打开方式（客户端 O 键；专用服无 GUI）</li>
+ *   <li>/echoreplay <file> —— 服务端加载并校验录制，反馈事件数</li>
+ * </ul></p>
  */
 public final class EchoWorldCommands {
 
@@ -27,6 +29,11 @@ public final class EchoWorldCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("echoreplay")
                 .requires(src -> src.hasPermission(2))
+                .then(Commands.literal("gui").executes(ctx -> {
+                    ctx.getSource().sendSuccess(() ->
+                            Component.literal("[EchoWorld] GUI opens with O key (in-game client)"), false);
+                    return 1;
+                }))
                 .then(Commands.argument("file", StringArgumentType.string())
                         .executes(ctx -> replay(ctx.getSource(), StringArgumentType.getString(ctx, "file")))));
     }
@@ -45,7 +52,6 @@ public final class EchoWorldCommands {
                 return 0;
             }
             byte[] data = Files.readAllBytes(f);
-            // 解码验证（EventDecoder 带校验）
             java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data));
             byte ver = EventDecoder.readHeader(in);
             if (ver <= 0) {
@@ -53,14 +59,14 @@ public final class EchoWorldCommands {
                 return 0;
             }
             List<Event> events = new ArrayList<>();
-            Event e;
             int bad = 0;
             while (in.available() > 0) {
                 Event ev = EventDecoder.readFrom(in);
                 if (ev != null) events.add(ev);
                 else bad++;
             }
-            final String msg = "[EchoWorld] Loaded " + events.size() + " events (" + bad + " skipped) from " + f.getFileName();
+            final String msg = "[EchoWorld] Loaded " + events.size() + " events ("
+                    + bad + " skipped) from " + f.getFileName();
             src.sendSuccess(() -> Component.literal(msg), false);
             return events.size();
         } catch (Exception ex) {
