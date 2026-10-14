@@ -82,7 +82,7 @@ public class RecordingScreen extends Screen {
             Path dir = Path.of("worldreplay", "recordings");
             if (Files.isDirectory(dir)) {
                 try (var s = Files.list(dir)) {
-                    for (Path f : (Iterable<Path>) s.filter(p -> p.toString().endsWith(".ecw"))::iterator) {
+                    for (Path f : (Iterable<Path>) s.filter(p -> p.toString().endsWith(".wrp"))::iterator) {
                         files.add(new RecFile(f.getFileName().toString(), Files.size(f),
                                 Files.getLastModifiedTime(f).toMillis()));
                     }

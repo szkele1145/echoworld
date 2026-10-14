@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * /echoreplay 命令：加载与校验 .ecw 录制。
+ * /echoreplay 命令：加载与校验 .wrp 录制。
  *
  * <p>子命令：
  * <ul>
@@ -46,7 +46,7 @@ public final class WorldReplayCommands {
         }
         try {
             Path dir = src.getServer().getServerDirectory().resolve("worldreplay").resolve("recordings");
-            Path f = dir.resolve(file.endsWith(".ecw") ? file : file + ".ecw");
+            Path f = dir.resolve(file.endsWith(".wrp") ? file : file + ".wrp");
             if (!Files.isRegularFile(f)) {
                 src.sendFailure(Component.literal("[WorldReplay] Not found: " + f.getFileName()));
                 return 0;

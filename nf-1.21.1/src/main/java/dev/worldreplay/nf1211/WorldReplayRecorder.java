@@ -49,13 +49,13 @@ public final class WorldReplayRecorder {
         UUID id = sp.getUUID();
         RecordingSession session = SESSIONS.remove(id);
         if (session != null) {
-            // 落盘：.worldreplay/recordings/<uuid>-<startTick>.ecw（core 二进制格式，magic 0xE7C0）
+            // 落盘：.worldreplay/recordings/<uuid>-<startTick>.wrp（core 二进制格式，magic 0xE7C0）
             try {
                 byte[] data = session.export();
                 Path dir = sp.serverLevel().getServer().getServerDirectory()
                         .resolve("worldreplay").resolve("recordings");
                 java.nio.file.Files.createDirectories(dir);
-                Path f = dir.resolve(id + "-" + session.startTick() + ".ecw");
+                Path f = dir.resolve(id + "-" + session.startTick() + ".wrp");
                 java.nio.file.Files.write(f, data);
                 LOGGER.info("[WorldReplay] Recording saved {} ({} events, {} bytes)",
                         f.getFileName(), session.eventCount(), data.length);
@@ -90,7 +90,7 @@ public final class WorldReplayRecorder {
             byte[] data = session.export();
             Path dir = server.getServerDirectory().resolve("worldreplay").resolve("recordings");
             java.nio.file.Files.createDirectories(dir);
-            Path f = dir.resolve(id + "-" + session.startTick() + ".ecw");
+            Path f = dir.resolve(id + "-" + session.startTick() + ".wrp");
             java.nio.file.Files.write(f, data);
             LOGGER.info("[WorldReplay] Manual recording saved {} ({} events)", f.getFileName(), session.eventCount());
         } catch (Exception e) {
