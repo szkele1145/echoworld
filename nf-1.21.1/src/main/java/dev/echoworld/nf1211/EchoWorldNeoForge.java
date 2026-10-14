@@ -9,10 +9,10 @@ import org.slf4j.Logger;
 /**
  * EchoWorld NeoForge 1.21.1 主入口。
  *
- * <p>装载录制器（行为捕获→落盘）与 /echoreplay 命令。</p>
+ * <p>装载录制器（行为捕获→落盘）与 /echoreplay 命令。
+ * 客户端 GUI（O 键）在 {@link dev.echoworld.nf1211.client.EchoWorldClient}（Dist.CLIENT 隔离）。</p>
  */
 @Mod(EchoWorldNeoForge.MOD_ID)
-@net.neoforged.fml.common.EventBusSubscriber(modid = EchoWorldNeoForge.MOD_ID)
 public class EchoWorldNeoForge {
 
     public static final String MOD_ID = "echoworld";
