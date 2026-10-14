@@ -35,6 +35,7 @@ public final class EchoWorldClient {
         while (OPEN_GUI.consumeClick()) {
             mc.setScreen(new RecordingScreen());
         }
+        ReplayVisualizer.tick();
     }
 
     private EchoWorldClient() {}

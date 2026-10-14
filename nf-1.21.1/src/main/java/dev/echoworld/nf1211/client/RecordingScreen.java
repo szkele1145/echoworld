@@ -105,7 +105,19 @@ public class RecordingScreen extends Screen {
 
     private void replaySelected() {
         if (selectedFile < 0 || selectedFile >= files.size()) return;
-        // TODO 下一迭代：加载 .ecw → ReplayEngine → 世界内渲染
+        try {
+            Path f = Path.of("echoworld", "recordings", files.get(selectedFile).name());
+            byte[] data = Files.readAllBytes(f);
+            java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data));
+            dev.echoworld.core.event.EventDecoder.readHeader(in);
+            java.util.List<dev.echoworld.core.event.Event> events = new ArrayList<>();
+            while (in.available() > 0) {
+                var ev = dev.echoworld.core.event.EventDecoder.readFrom(in);
+                if (ev != null) events.add(ev);
+            }
+            ReplayVisualizer.begin(events);
+            Minecraft.getInstance().setScreen(null);   // 关 GUI 看世界
+        } catch (Exception ignored) {}
     }
 
     @Override
