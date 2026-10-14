@@ -33,7 +33,10 @@ public final class WorldReplayClient {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         while (OPEN_GUI.consumeClick()) {
-            mc.setScreen(new RecordingScreen());
+            // Bug 1 修复：文件在服务端目录——改为发 C2S 请求列表包，
+            // 服务端回 RecordList 后由 ClientPayloadHandlers 开屏（见该类）
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                    new dev.worldreplay.nf1211.RecordListPackets.RequestRecordList());
         }
         ReplayVisualizer.tick();
     }

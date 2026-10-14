@@ -30,7 +30,13 @@ public final class WorldReplayCommands {
         dispatcher.register(Commands.literal("echoreplay")
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("gui").executes(ctx -> {
-                    ctx.getSource().sendSuccess(() ->
+                    // Bug 1 修复：服务端扫描 recordings 目录，把列表发给执行者，
+                    // 客户端收到 RecordList 后打开 GUI（不再读客户端本地目录）
+                    CommandSourceStack source = ctx.getSource();
+                    if (source.getPlayer() != null) {
+                        RecordControlHandler.sendRecordList(source.getPlayer());
+                    }
+                    source.sendSuccess(() ->
                             Component.translatable("worldreplay.gui.hint"), false);
                     return 1;
                 }))

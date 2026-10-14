@@ -22,6 +22,13 @@ public class ReplayEngine {
     private double speed = 1.0;
     private boolean playing = false;
     private Event currentEvent = null;
+    /** 慢速小数累积器：speed<1 时跨 tick 累积，满 1 才推进（修 0.25x/0.5x 失效）。 */
+    private double tickAccum = 0.0;
+
+    /** 有序时间线视图（渲染用，与内部同序）。 */
+    public List<Event> timelineView() {
+        return java.util.Collections.unmodifiableList(timeline);
+    }
 
     public ReplayEngine(List<Event> events) {
         if (events != null) {
@@ -32,6 +39,9 @@ public class ReplayEngine {
             }
             timeline.sort(Comparator.comparingLong(Event::tick));
         }
+        // 归一到首事件 tick：gameTime 大的录制不从 0 空转（与 stop() 语义一致）
+        currentTick = timeline.isEmpty() ? 0 : timeline.get(0).tick();
+        tickAccum = 0.0;
     }
 
     /** 开始/恢复回放。 */
@@ -51,6 +61,7 @@ public class ReplayEngine {
         playing = false;
         cursor = 0;
         currentTick = timeline.isEmpty() ? 0 : timeline.get(0).tick();
+        tickAccum = 0.0;
         currentEvent = null;
     }
 
@@ -65,9 +76,15 @@ public class ReplayEngine {
             return 0;
         }
         long prev = currentTick;
-        currentTick += Math.round(speed);
+        // 小数累积推进：0.25x → 每 4 tick 前进 1；0.5x → 每 2 tick 前进 1（修慢速失效）
+        tickAccum += speed;
+        long adv = (long) tickAccum;
+        if (adv > 0) {
+            tickAccum -= adv;
+            currentTick += adv;
+        }
         if (currentTick == prev) {
-            currentTick = prev + 1; // speed < 1 时保证前进
+            return 0;   // 慢速累积不足 1：本 tick 不推进（不再强制 +1 破坏慢速语义）
         }
         return advanceTo(currentTick);
     }

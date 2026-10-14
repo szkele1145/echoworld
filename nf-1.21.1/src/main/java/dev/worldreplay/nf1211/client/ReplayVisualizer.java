@@ -59,60 +59,64 @@ public final class ReplayVisualizer {
 
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
-        if (engine == null || events == null || events.isEmpty()) return;
+        // 只在半透明方块后渲染一次（修：全 stage 重复渲染 5~8 次）
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
+        if (engine == null || !engine.isPlaying()) return;   // 播完不残留标记
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
         long currentTick = engine.getCurrentTick();
+        List<Event> timeline = engine.timelineView();   // 有序时间线（引擎保证，不再用原始乱序列表）
+        if (timeline.isEmpty()) return;
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         Font font = mc.font;
 
         PoseStackAccessor.begin(event);
-        Vec3 cam = event.getCamera().getPosition();
-        var pose = PoseStackAccessor.pose();
-        pose.translate(-cam.x, -cam.y, -cam.z);
-        Matrix4f mat = pose.last().pose();
+        try {
+            Vec3 cam = event.getCamera().getPosition();
+            var pose = PoseStackAccessor.pose();
+            pose.translate(-cam.x, -cam.y, -cam.z);
+            Matrix4f mat = pose.last().pose();
 
-        // 事件窗口：当前 tick 前后各 40（同步节拍）
-        long lo = currentTick - MARK_WINDOW_TICKS / 2;
-        long hi = currentTick + MARK_WINDOW_TICKS / 2;
-        // events 按 tick 有序——二分定位窗口（ReplayEngine 已排序）
-        for (Event e : events) {
-            if (e.tick() < lo) continue;
-            if (e.tick() > hi) break;
-            // 淡出系数：越旧越透明
-            float age = (currentTick - e.tick()) / (float) MARK_WINDOW_TICKS;   // 0.5..1.5
-            float alpha = GHOST_ALPHA * Math.max(0f, 1f - Math.abs(age - 0.5f) * 2f);
-            if (alpha < 0.03f) continue;
+            // 事件窗口：只画已重放的部分 [currentTick-80, currentTick]
+            long lo = currentTick - MARK_WINDOW_TICKS;
+            long hi = currentTick;
+            for (Event e : timeline) {
+                if (e.tick() < lo) continue;
+                if (e.tick() > hi) break;
+                // 淡出：当前时刻最亮，随年龄线性衰减到 0（修：原公式方向反了）
+                float age = (currentTick - e.tick()) / (float) MARK_WINDOW_TICKS;   // 0..1
+                float alpha = GHOST_ALPHA * (1.0f - age);
+                if (alpha < 0.03f) continue;
 
-            int color = switch (e.type()) {
-                case "block_place" -> 0x00FFFF;
-                case "block_break" -> 0xFF5555;
-                case "block_use", "container_open", "gui_open" -> 0xFFD700;
-                default -> 0xFFFFFF;
-            };
-            float cr = ((color >> 16) & 0xFF) / 255f;
-            float cg = ((color >> 8) & 0xFF) / 255f;
-            float cb = (color & 0xFF) / 255f;
-            var buf = buffers.getBuffer(RenderType.debugLineStrip(2.0f));
-            drawBox(buf, mat, e.x(), e.y(), e.z(), cr, cg, cb, alpha);
+                int color = switch (e.type()) {
+                    case "block_place" -> 0x00FFFF;
+                    case "block_break" -> 0xFF5555;
+                    case "block_use", "container_open", "gui_open" -> 0xFFD700;
+                    default -> 0xFFFFFF;
+                };
+                float cr = ((color >> 16) & 0xFF) / 255f;
+                float cg = ((color >> 8) & 0xFF) / 255f;
+                float cb = (color & 0xFF) / 255f;
+                var buf = buffers.getBuffer(RenderType.debugLineStrip(2.0f));
+                drawBox(buf, mat, e.x(), e.y(), e.z(), cr, cg, cb, alpha);
 
-            // 幽灵浮字：动作简述（50% 透明）
-            String label = ghostLabel(e);
-            pose.pushPose();
-            pose.translate(e.x(), e.y() + 2.2, e.z());
-            pose.mulPose(mc.getEntityRenderDispatcher().cameraOrientation());
-            float ls = 0.035f;
-            pose.scale(ls, -ls, ls);
-            int argb = ((int) (alpha * 255) << 24) | 0xFFFFFF;
-            font.drawInBatch(label, -font.width(label) / 2f, 0f, argb, true,
-                    pose.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
-                    LightTexture.FULL_BRIGHT, LightTexture.FULL_BRIGHT);
-            pose.popPose();
+                String label = ghostLabel(e);
+                pose.pushPose();
+                pose.translate(e.x(), e.y() + 2.2, e.z());
+                pose.mulPose(mc.getEntityRenderDispatcher().cameraOrientation());
+                float ls = 0.035f;
+                pose.scale(ls, -ls, ls);
+                int argb = ((int) (alpha * 255) << 24) | 0xFFFFFF;
+                font.drawInBatch(label, -font.width(label) / 2f, 0f, argb, true,
+                        pose.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
+                        LightTexture.FULL_BRIGHT, LightTexture.FULL_BRIGHT);
+                pose.popPose();
+            }
+            buffers.endBatch();
+        } finally {
+            PoseStackAccessor.end();
         }
-
-        buffers.endBatch();
-        PoseStackAccessor.end();
     }
 
     /** 幽灵标签（回放语态）。 */
