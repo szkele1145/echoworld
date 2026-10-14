@@ -1,13 +1,13 @@
-# EchoWorld
+# WorldReplay
 
 **全量行为录制与回放**——在 Minecraft 世界里重现玩家做过的一切：方块增减、实体移动、容器操作。
 
-> 独立于 GlowTrack（玩家轨迹追踪）的新项目。GlowTrack 回答"他去过哪"，EchoWorld 回答"他干了什么"。
+> 独立于 GlowTrack（玩家轨迹追踪）的新项目。GlowTrack 回答"他去过哪"，WorldReplay 回答"他干了什么"。
 
 ## 架构
 
 ```
-echoworld/
+worldreplay/
 ├── core/              # 事件格式 + 回放引擎（纯逻辑，无 MC 依赖，可单测）
 ├── nf-1.21.1/         # NeoForge 1.21.1 平台适配（首发）
 ├── fb-1.20.1/         # Fabric 1.20.1

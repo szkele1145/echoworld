@@ -2,7 +2,7 @@ plugins {
     id 'java-library'
 }
 
-group = 'dev.echoworld'
+group = 'dev.worldreplay'
 version = '0.1.0'
 
 base {

@@ -1,4 +1,4 @@
-package dev.echoworld.nf1211;
+package dev.worldreplay.nf1211;
 
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.MinecraftServer;
@@ -15,10 +15,10 @@ import java.util.UUID;
 /**
  * 录制控制包处理：C2S 开/停录制指定玩家（GUI Start/Stop 按钮的服务端侧）。
  *
- * <p>注册为 optional——没装 EchoWorld 的客户端不受影响。
+ * <p>注册为 optional——没装 WorldReplay 的客户端不受影响。
  * players 为空 + start=true = 全体在线玩家（Select All）。</p>
  */
-@EventBusSubscriber(modid = EchoWorldNeoForge.MOD_ID)
+@EventBusSubscriber(modid = WorldReplayNeoForge.MOD_ID)
 public final class RecordControlHandler {
 
     @SubscribeEvent
@@ -40,9 +40,9 @@ public final class RecordControlHandler {
         }
         for (UUID id : targets) {
             if (payload.start()) {
-                EchoWorldRecorder.startFor(server, id);
+                WorldReplayRecorder.startFor(server, id);
             } else {
-                EchoWorldRecorder.stopFor(server, id);
+                WorldReplayRecorder.stopFor(server, id);
             }
         }
     }

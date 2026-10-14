@@ -1,9 +1,9 @@
-package dev.echoworld.nf1211;
+package dev.worldreplay.nf1211;
 
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
-import dev.echoworld.core.event.Event;
-import dev.echoworld.core.event.RecordingSession;
+import dev.worldreplay.core.event.Event;
+import dev.worldreplay.core.event.RecordingSession;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -20,13 +20,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * EchoWorld 行为捕获（NeoForge 1.21.1 平台层）�? * 把平台事件翻译为 core 统一 Event 格式，写�?RecordingSession�? *
+ * WorldReplay 行为捕获（NeoForge 1.21.1 平台层）�? * 把平台事件翻译为 core 统一 Event 格式，写�?RecordingSession�? *
  * <p>每个在线玩家一个录制会话（进服开始，退服停止并落盘）�? * 走原版方�?实体系统的事件——第三方 mod（MTR 等）的自定义方块自动被捕获�?/p>
  *
  * <p><b>v0.2：实现完整的录制生命周期�?/b></p>
  */
-@EventBusSubscriber(modid = EchoWorldNeoForge.MOD_ID)
-public final class EchoWorldRecorder {
+@EventBusSubscriber(modid = WorldReplayNeoForge.MOD_ID)
+public final class WorldReplayRecorder {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     /** 玩家 UUID -> 录制会话（进服开始，退服停止）�?*/
@@ -40,7 +40,7 @@ public final class EchoWorldRecorder {
         UUID id = sp.getUUID();
         RecordingSession session = RecordingSession.start(sp.serverLevel().getGameTime(), sp.getUUID().toString());
         SESSIONS.put(id, session);
-        LOGGER.info("[EchoWorld] Recording started for {}", sp.getName().getString());
+        LOGGER.info("[WorldReplay] Recording started for {}", sp.getName().getString());
     }
 
     @SubscribeEvent
@@ -49,18 +49,18 @@ public final class EchoWorldRecorder {
         UUID id = sp.getUUID();
         RecordingSession session = SESSIONS.remove(id);
         if (session != null) {
-            // 落盘：.echoworld/recordings/<uuid>-<startTick>.ecw（core 二进制格式，magic 0xE7C0）
+            // 落盘：.worldreplay/recordings/<uuid>-<startTick>.ecw（core 二进制格式，magic 0xE7C0）
             try {
                 byte[] data = session.export();
                 Path dir = sp.serverLevel().getServer().getServerDirectory()
-                        .resolve("echoworld").resolve("recordings");
+                        .resolve("worldreplay").resolve("recordings");
                 java.nio.file.Files.createDirectories(dir);
                 Path f = dir.resolve(id + "-" + session.startTick() + ".ecw");
                 java.nio.file.Files.write(f, data);
-                LOGGER.info("[EchoWorld] Recording saved {} ({} events, {} bytes)",
+                LOGGER.info("[WorldReplay] Recording saved {} ({} events, {} bytes)",
                         f.getFileName(), session.eventCount(), data.length);
             } catch (Exception e) {
-                LOGGER.error("[EchoWorld] Failed to save recording for {}", id, e);
+                LOGGER.error("[WorldReplay] Failed to save recording for {}", id, e);
             }
         }
     }
@@ -77,7 +77,7 @@ public final class EchoWorldRecorder {
         if (sp == null) return;
         RecordingSession session = RecordingSession.start(sp.serverLevel().getGameTime(), id.toString());
         SESSIONS.put(id, session);
-        LOGGER.info("[EchoWorld] Manual recording started for {}", sp.getName().getString());
+        LOGGER.info("[WorldReplay] Manual recording started for {}", sp.getName().getString());
     }
 
     /** 服务端控制：停止并落盘某玩家。 */
@@ -88,13 +88,13 @@ public final class EchoWorldRecorder {
         String name = sp != null ? sp.getName().getString() : id.toString();
         try {
             byte[] data = session.export();
-            Path dir = server.getServerDirectory().resolve("echoworld").resolve("recordings");
+            Path dir = server.getServerDirectory().resolve("worldreplay").resolve("recordings");
             java.nio.file.Files.createDirectories(dir);
             Path f = dir.resolve(id + "-" + session.startTick() + ".ecw");
             java.nio.file.Files.write(f, data);
-            LOGGER.info("[EchoWorld] Manual recording saved {} ({} events)", f.getFileName(), session.eventCount());
+            LOGGER.info("[WorldReplay] Manual recording saved {} ({} events)", f.getFileName(), session.eventCount());
         } catch (Exception e) {
-            LOGGER.error("[EchoWorld] Failed to save manual recording for {}", name, e);
+            LOGGER.error("[WorldReplay] Failed to save manual recording for {}", name, e);
         }
     }
 

@@ -1,6 +1,6 @@
-package dev.echoworld.nf1211.client;
+package dev.worldreplay.nf1211.client;
 
-import dev.echoworld.nf1211.EchoWorldNeoForge;
+import dev.worldreplay.nf1211.WorldReplayNeoForge;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -16,12 +16,12 @@ import org.lwjgl.glfw.GLFW;
  *
  * <p>Dist.CLIENT 保证专用服务器不加载本类（KeyMapping 是客户端类）。</p>
  */
-@EventBusSubscriber(modid = EchoWorldNeoForge.MOD_ID, value = Dist.CLIENT)
-public final class EchoWorldClient {
+@EventBusSubscriber(modid = WorldReplayNeoForge.MOD_ID, value = Dist.CLIENT)
+public final class WorldReplayClient {
 
     /** O 键：打开录制管理屏。 */
     public static final KeyMapping OPEN_GUI = new KeyMapping(
-            "key.echoworld.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, "category.echoworld");
+            "key.worldreplay.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, "category.worldreplay");
 
     @SubscribeEvent
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
@@ -38,5 +38,5 @@ public final class EchoWorldClient {
         ReplayVisualizer.tick();
     }
 
-    private EchoWorldClient() {}
+    private WorldReplayClient() {}
 }

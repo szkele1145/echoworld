@@ -1,8 +1,8 @@
-package dev.echoworld.nf1211.client;
+package dev.worldreplay.nf1211.client;
 
-import dev.echoworld.core.event.Event;
-import dev.echoworld.nf1211.EchoWorldNeoForge;
-import dev.echoworld.core.event.ReplayEngine;
+import dev.worldreplay.core.event.Event;
+import dev.worldreplay.nf1211.WorldReplayNeoForge;
+import dev.worldreplay.core.event.ReplayEngine;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.LightTexture;
@@ -24,9 +24,9 @@ import java.util.List;
  * 动作标记随淡出窗口衰减（与 GlowTrack ActionRenderer 同款视觉语言）。</p>
  *
  * <p>由 GUI 的 Replay 按钮设置 {@link #begin(List)}，每客户端 tick 由
- * {@link EchoWorldClient} 推进 ReplayEngine。</p>
+ * {@link WorldReplayClient} 推进 ReplayEngine。</p>
  */
-@EventBusSubscriber(modid = EchoWorldNeoForge.MOD_ID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = WorldReplayNeoForge.MOD_ID, value = Dist.CLIENT)
 public final class ReplayVisualizer {
 
     /** 活动回放会话（null = 未在回放）。 */
@@ -52,7 +52,7 @@ public final class ReplayVisualizer {
 
     public static boolean isReplaying() { return engine != null && engine.isPlaying(); }
 
-    /** 每客户端 tick 推进（EchoWorldClient.onClientTick 调用）。 */
+    /** 每客户端 tick 推进（WorldReplayClient.onClientTick 调用）。 */
     public static void tick() {
         if (engine != null && engine.isPlaying()) engine.tick();
     }

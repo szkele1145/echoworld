@@ -1,9 +1,9 @@
-package dev.echoworld.nf1211;
+package dev.worldreplay.nf1211;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import dev.echoworld.core.event.Event;
-import dev.echoworld.core.event.EventDecoder;
+import dev.worldreplay.core.event.Event;
+import dev.worldreplay.core.event.EventDecoder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -23,7 +23,7 @@ import java.util.List;
  *   <li>/echoreplay <file> —— 服务端加载并校验录制，反馈事件数</li>
  * </ul></p>
  */
-public final class EchoWorldCommands {
+public final class WorldReplayCommands {
 
     /** 注册到服务端命令树。 */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
@@ -31,7 +31,7 @@ public final class EchoWorldCommands {
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("gui").executes(ctx -> {
                     ctx.getSource().sendSuccess(() ->
-                            Component.literal("[EchoWorld] GUI opens with O key (in-game client)"), false);
+                            Component.literal("[WorldReplay] GUI opens with O key (in-game client)"), false);
                     return 1;
                 }))
                 .then(Commands.argument("file", StringArgumentType.string())
@@ -41,21 +41,21 @@ public final class EchoWorldCommands {
     private static int replay(CommandSourceStack src, String file) {
         // 防目录穿越
         if (file.contains("/") || file.contains("\\") || file.contains("..")) {
-            src.sendFailure(Component.literal("[EchoWorld] Invalid file name"));
+            src.sendFailure(Component.literal("[WorldReplay] Invalid file name"));
             return 0;
         }
         try {
-            Path dir = src.getServer().getServerDirectory().resolve("echoworld").resolve("recordings");
+            Path dir = src.getServer().getServerDirectory().resolve("worldreplay").resolve("recordings");
             Path f = dir.resolve(file.endsWith(".ecw") ? file : file + ".ecw");
             if (!Files.isRegularFile(f)) {
-                src.sendFailure(Component.literal("[EchoWorld] Not found: " + f.getFileName()));
+                src.sendFailure(Component.literal("[WorldReplay] Not found: " + f.getFileName()));
                 return 0;
             }
             byte[] data = Files.readAllBytes(f);
             java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data));
             byte ver = EventDecoder.readHeader(in);
             if (ver <= 0) {
-                src.sendFailure(Component.literal("[EchoWorld] Bad magic (not an EchoWorld recording)"));
+                src.sendFailure(Component.literal("[WorldReplay] Bad magic (not an WorldReplay recording)"));
                 return 0;
             }
             List<Event> events = new ArrayList<>();
@@ -65,15 +65,15 @@ public final class EchoWorldCommands {
                 if (ev != null) events.add(ev);
                 else bad++;
             }
-            final String msg = "[EchoWorld] Loaded " + events.size() + " events ("
+            final String msg = "[WorldReplay] Loaded " + events.size() + " events ("
                     + bad + " skipped) from " + f.getFileName();
             src.sendSuccess(() -> Component.literal(msg), false);
             return events.size();
         } catch (Exception ex) {
-            src.sendFailure(Component.literal("[EchoWorld] Load failed: " + ex.getMessage()));
+            src.sendFailure(Component.literal("[WorldReplay] Load failed: " + ex.getMessage()));
             return 0;
         }
     }
 
-    private EchoWorldCommands() {}
+    private WorldReplayCommands() {}
 }

@@ -1,4 +1,4 @@
-package dev.echoworld.core.event;
+package dev.worldreplay.core.event;
 
 /**
  * 全量行为事件的统一格式。

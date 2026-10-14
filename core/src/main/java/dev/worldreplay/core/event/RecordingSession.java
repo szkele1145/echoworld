@@ -1,4 +1,4 @@
-package dev.echoworld.core.event;
+package dev.worldreplay.core.event;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;

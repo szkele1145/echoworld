@@ -1,6 +1,6 @@
-package dev.echoworld.nf1211;
+package dev.worldreplay.nf1211;
 
-import dev.echoworld.core.event.RecordingSession;
+import dev.worldreplay.core.event.RecordingSession;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -20,7 +20,7 @@ public final class RecordControlPackets {
     private RecordControlPackets() {}
 
     public static final ResourceLocation RECORD_CONTROL_ID =
-            ResourceLocation.fromNamespaceAndPath(EchoWorldNeoForge.MOD_ID, "record_control");
+            ResourceLocation.fromNamespaceAndPath(WorldReplayNeoForge.MOD_ID, "record_control");
 
     public record RecordControl(boolean start, List<UUID> players) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<RecordControl> TYPE =

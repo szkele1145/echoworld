@@ -1,4 +1,4 @@
-package dev.echoworld.nf1211.client;
+package dev.worldreplay.nf1211.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * EchoWorld 录制管理屏（OP 用）：/echoreplay gui 打开。
+ * WorldReplay 录制管理屏（OP 用）：/echoreplay gui 打开。
  *
  * <p>左栏：录制文件列表（文件管理器式，点击选中，DEL 删除）。
  * 右栏：录制设置——在线玩家多选（全选/反选）+ 录制策略。</p>
@@ -45,7 +45,7 @@ public class RecordingScreen extends Screen {
     record RecFile(String name, long size, long modified) {}
 
     public RecordingScreen() {
-        super(Component.literal("EchoWorld Recorder"));
+        super(Component.literal("WorldReplay Recorder"));
     }
 
     @Override
@@ -79,7 +79,7 @@ public class RecordingScreen extends Screen {
     private void refresh() {
         files.clear();
         try {
-            Path dir = Path.of("echoworld", "recordings");
+            Path dir = Path.of("worldreplay", "recordings");
             if (Files.isDirectory(dir)) {
                 try (var s = Files.list(dir)) {
                     for (Path f : (Iterable<Path>) s.filter(p -> p.toString().endsWith(".ecw"))::iterator) {
@@ -101,7 +101,7 @@ public class RecordingScreen extends Screen {
     private void deleteSelected() {
         if (selectedFile < 0 || selectedFile >= files.size()) return;
         try {
-            Files.deleteIfExists(Path.of("echoworld", "recordings", files.get(selectedFile).name()));
+            Files.deleteIfExists(Path.of("worldreplay", "recordings", files.get(selectedFile).name()));
             selectedFile = -1;
             refresh();
         } catch (Exception ignored) {}
@@ -110,13 +110,13 @@ public class RecordingScreen extends Screen {
     private void replaySelected() {
         if (selectedFile < 0 || selectedFile >= files.size()) return;
         try {
-            Path f = Path.of("echoworld", "recordings", files.get(selectedFile).name());
+            Path f = Path.of("worldreplay", "recordings", files.get(selectedFile).name());
             byte[] data = Files.readAllBytes(f);
             java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data));
-            dev.echoworld.core.event.EventDecoder.readHeader(in);
-            java.util.List<dev.echoworld.core.event.Event> events = new ArrayList<>();
+            dev.worldreplay.core.event.EventDecoder.readHeader(in);
+            java.util.List<dev.worldreplay.core.event.Event> events = new ArrayList<>();
             while (in.available() > 0) {
-                var ev = dev.echoworld.core.event.EventDecoder.readFrom(in);
+                var ev = dev.worldreplay.core.event.EventDecoder.readFrom(in);
                 if (ev != null) events.add(ev);
             }
             ReplayVisualizer.begin(events);
@@ -130,7 +130,7 @@ public class RecordingScreen extends Screen {
         // 面板
         g.fill(left, top, left + PANEL_W, top + PANEL_H, 0xF016181D);
         g.fill(left, top, left + PANEL_W, top + 22, 0xFF21262D);
-        g.drawString(font, "EchoWorld Recorder", left + 8, top + 7, 0xE6EDF3, false);
+        g.drawString(font, "WorldReplay Recorder", left + 8, top + 7, 0xE6EDF3, false);
 
         // 左栏：文件列表
         int listW = 260, listTop = top + 28;
@@ -218,7 +218,7 @@ public class RecordingScreen extends Screen {
         }
         if (!ids.isEmpty() || recordAll) {
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                    new dev.echoworld.nf1211.RecordControlPackets.RecordControl(start, ids));
+                    new dev.worldreplay.nf1211.RecordControlPackets.RecordControl(start, ids));
         }
     }
 
