@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 import dev.echoworld.core.event.Event;
 import dev.echoworld.core.event.RecordingSession;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -67,6 +68,34 @@ public final class EchoWorldRecorder {
     /** 获取某玩家的录制会话（null = 未在录制）�?*/
     public static RecordingSession getSession(UUID playerId) {
         return SESSIONS.get(playerId);
+    }
+
+    /** 服务端控制：开始录制某玩家（在线时才有效）。 */
+    public static void startFor(MinecraftServer server, UUID id) {
+        if (SESSIONS.containsKey(id)) return;   // 已在录制
+        var sp = server.getPlayerList().getPlayer(id);
+        if (sp == null) return;
+        RecordingSession session = RecordingSession.start(sp.serverLevel().getGameTime(), id.toString());
+        SESSIONS.put(id, session);
+        LOGGER.info("[EchoWorld] Manual recording started for {}", sp.getName().getString());
+    }
+
+    /** 服务端控制：停止并落盘某玩家。 */
+    public static void stopFor(MinecraftServer server, UUID id) {
+        RecordingSession session = SESSIONS.remove(id);
+        if (session == null) return;
+        var sp = server.getPlayerList().getPlayer(id);
+        String name = sp != null ? sp.getName().getString() : id.toString();
+        try {
+            byte[] data = session.export();
+            Path dir = server.getServerDirectory().resolve("echoworld").resolve("recordings");
+            java.nio.file.Files.createDirectories(dir);
+            Path f = dir.resolve(id + "-" + session.startTick() + ".ecw");
+            java.nio.file.Files.write(f, data);
+            LOGGER.info("[EchoWorld] Manual recording saved {} ({} events)", f.getFileName(), session.eventCount());
+        } catch (Exception e) {
+            LOGGER.error("[EchoWorld] Failed to save manual recording for {}", name, e);
+        }
     }
 
     // ---- 事件捕获 ----

@@ -38,6 +38,7 @@ public class RecordingScreen extends Screen {
     private boolean recordAll = false;
     /** 策略：0=持续录（一直录），1=仅手动开始/停止。 */
     private int policy = 0;
+    private Button startBtn, stopBtn;
     private static final String[] POLICY_NAMES = {"Always (while online)", "Manual start/stop"};
 
     /** 一条录制文件。 */
@@ -62,9 +63,12 @@ public class RecordingScreen extends Screen {
             policy = (policy + 1) % POLICY_NAMES.length;
             b.setMessage(Component.literal("Policy: " + POLICY_NAMES[policy]));
         }).bounds(left + 280, top + 62, 205, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Start Recording"), b -> {
-            // TODO 下一迭代：通过网络包通知服务端开始录制 chosenPlayers
-        }).bounds(left + 280, top + PANEL_H - 30, 205, 20).build());
+        startBtn = Button.builder(Component.literal("Start Recording"), b -> sendControl(true))
+                .bounds(left + 280, top + PANEL_H - 30, 205, 20).build();
+        addRenderableWidget(startBtn);
+        stopBtn = Button.builder(Component.literal("Stop"), b -> sendControl(false))
+                .bounds(left + 280, top + PANEL_H - 56, 205, 20).build();
+        addRenderableWidget(stopBtn);
         addRenderableWidget(Button.builder(Component.literal("Delete"), b -> deleteSelected())
                 .bounds(left + 8, top + PANEL_H - 30, 100, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Replay"), b -> replaySelected())
@@ -202,6 +206,20 @@ public class RecordingScreen extends Screen {
             return true;
         }
         return super.mouseScrolled(mx, my, sx, sy);
+    }
+
+    private void sendControl(boolean start) {
+        java.util.List<java.util.UUID> ids = new ArrayList<>();
+        net.minecraft.client.multiplayer.ClientPacketListener conn = net.minecraft.client.Minecraft.getInstance().getConnection();
+        if (conn == null) return;
+        for (String name : (recordAll ? onlinePlayers : chosenPlayers)) {
+            var info = conn.getPlayerInfo(name);
+            if (info != null) ids.add(info.getProfile().getId());
+        }
+        if (!ids.isEmpty() || recordAll) {
+            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                    new dev.echoworld.nf1211.RecordControlPackets.RecordControl(start, ids));
+        }
     }
 
     @Override
