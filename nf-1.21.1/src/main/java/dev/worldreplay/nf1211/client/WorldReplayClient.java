@@ -21,7 +21,7 @@ public final class WorldReplayClient {
 
     /** O 键：打开录制管理屏。 */
     public static final KeyMapping OPEN_GUI = new KeyMapping(
-            "key.worldreplay.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, "category.worldreplay");
+            "key.worldreplay.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, "key.categories.worldreplay");
 
     @SubscribeEvent
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {

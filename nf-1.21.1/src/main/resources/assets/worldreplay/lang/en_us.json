@@ -1,1 +1,15 @@
-{"key.worldreplay.open": "Open WorldReplay Recordings", "category.worldreplay": "WorldReplay"}
+{
+    "key.categories.worldreplay": "WorldReplay",
+    "key.worldreplay.open": "Open Recordings",
+    "worldreplay.gui.title": "WorldReplay Recorder",
+    "worldreplay.gui.selectall": "Select All",
+    "worldreplay.gui.clear": "Clear",
+    "worldreplay.gui.start": "Start Recording",
+    "worldreplay.gui.stopall": "Stop Recording",
+    "worldreplay.gui.delete": "Delete",
+    "worldreplay.gui.replay": "Replay",
+    "worldreplay.gui.recordwho": "Record who:",
+    "worldreplay.gui.empty": "(no recordings)",
+    "worldreplay.gui.noplayers": "(no players online)",
+    "worldreplay.gui.hint": "Press O to open the recorder (in-game)"
+}

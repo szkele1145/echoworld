@@ -31,7 +31,7 @@ public final class WorldReplayCommands {
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("gui").executes(ctx -> {
                     ctx.getSource().sendSuccess(() ->
-                            Component.literal("[WorldReplay] GUI opens with O key (in-game client)"), false);
+                            Component.translatable("worldreplay.gui.hint"), false);
                     return 1;
                 }))
                 .then(Commands.argument("file", StringArgumentType.string())

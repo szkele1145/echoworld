@@ -12,19 +12,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * WorldReplay 录制管理屏（OP 用）：/echoreplay gui 打开。
+ * WorldReplay 录制管理屏：O 键或 /worldreplay gui 打开。
  *
- * <p>左栏：录制文件列表（文件管理器式，点击选中，DEL 删除）。
- * 右栏：录制设置——在线玩家多选（全选/反选）+ 录制策略。</p>
+ * <p>左栏：录制文件列表（点击选中，DEL 删除，滚轮翻页）。
+ * 右栏：录制设置——在线玩家多选（全选/清空）+ 开始/停止。</p>
  *
- * <p>视觉风格与 GlowTrack 一致：扁平深色 + 单像素边框。</p>
+ * <p><b>自适应布局</b>（v0.1.1）：面板尺寸按窗口缩放——小窗口（GUI Scale 大）不再溢出屏幕。
+ * 全部文案走语言文件（跟随游戏语言，中文客户端显示中文）。</p>
  */
 public class RecordingScreen extends Screen {
 
-    private static final int PANEL_W = 500, PANEL_H = 240;
-    private static final int ROW_H = 20;
-
     private int left, top;
+    private int panelW, panelH;
 
     // ---- 文件列表 ----
     private final List<RecFile> files = new ArrayList<>();
@@ -32,49 +31,49 @@ public class RecordingScreen extends Screen {
     private int fileScroll = 0;
 
     // ---- 录制目标（在线玩家）----
-    /** 选中待录制的玩家名；空集 = 不录。 */
     private final List<String> chosenPlayers = new ArrayList<>();
     private List<String> onlinePlayers = new ArrayList<>();
     private boolean recordAll = false;
-    /** 策略：0=持续录（一直录），1=仅手动开始/停止。 */
-    private int policy = 0;
-    private Button startBtn, stopBtn;
-    private static final String[] POLICY_NAMES = {"Always (while online)", "Manual start/stop"};
+
+    private Button startBtn, stopBtn, policyBtn;
 
     /** 一条录制文件。 */
     record RecFile(String name, long size, long modified) {}
 
     public RecordingScreen() {
-        super(Component.literal("WorldReplay Recorder"));
+        super(Component.translatable("worldreplay.gui.title"));
     }
 
     @Override
     protected void init() {
-        left = (this.width - PANEL_W) / 2;
-        top = (this.height - PANEL_H) / 2;
-        // 右栏按钮
-        addRenderableWidget(Button.builder(Component.literal("Select All"), b -> {
+        // 自适应：面板不超过窗口的 92%，最小 260x180
+        panelW = Math.max(260, Math.min(520, (int) (this.width * 0.92)));
+        panelH = Math.max(180, Math.min(250, (int) (this.height * 0.92)));
+        left = (this.width - panelW) / 2;
+        top = (this.height - panelH) / 2;
+
+        int rightX = left + panelW - 216;   // 右栏按钮区
+        int colW = Math.min(100, (panelW - 300) / 2);
+        addRenderableWidget(Button.builder(tr("worldreplay.gui.selectall"), b -> {
             recordAll = true; chosenPlayers.clear(); chosenPlayers.addAll(onlinePlayers);
-        }).bounds(left + 280, top + 40, 100, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Clear"), b -> {
+        }).bounds(rightX, top + 38, colW, 18).build());
+        addRenderableWidget(Button.builder(tr("worldreplay.gui.clear"), b -> {
             chosenPlayers.clear(); recordAll = false;
-        }).bounds(left + 385, top + 40, 100, 18).build());
-        addRenderableWidget(Button.builder(Component.literal("Policy: " + POLICY_NAMES[policy]), b -> {
-            policy = (policy + 1) % POLICY_NAMES.length;
-            b.setMessage(Component.literal("Policy: " + POLICY_NAMES[policy]));
-        }).bounds(left + 280, top + 62, 205, 18).build());
-        startBtn = Button.builder(Component.literal("Start Recording"), b -> sendControl(true))
-                .bounds(left + 280, top + PANEL_H - 30, 205, 20).build();
+        }).bounds(rightX + colW + 4, top + 38, colW, 18).build());
+        startBtn = Button.builder(tr("worldreplay.gui.start"), b -> sendControl(true))
+                .bounds(rightX, top + panelH - 30, 212, 20).build();
         addRenderableWidget(startBtn);
-        stopBtn = Button.builder(Component.literal("Stop"), b -> sendControl(false))
-                .bounds(left + 280, top + PANEL_H - 56, 205, 20).build();
+        stopBtn = Button.builder(tr("worldreplay.gui.stopall"), b -> sendControl(false))
+                .bounds(rightX, top + panelH - 54, 212, 20).build();
         addRenderableWidget(stopBtn);
-        addRenderableWidget(Button.builder(Component.literal("Delete"), b -> deleteSelected())
-                .bounds(left + 8, top + PANEL_H - 30, 100, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Replay"), b -> replaySelected())
-                .bounds(left + 114, top + PANEL_H - 30, 100, 20).build());
+        addRenderableWidget(Button.builder(tr("worldreplay.gui.delete"), b -> deleteSelected())
+                .bounds(left + 8, top + panelH - 30, 100, 20).build());
+        addRenderableWidget(Button.builder(tr("worldreplay.gui.replay"), b -> replaySelected())
+                .bounds(left + 114, top + panelH - 30, 100, 20).build());
         refresh();
     }
+
+    private static Component tr(String key) { return Component.translatable(key); }
 
     private void refresh() {
         files.clear();
@@ -90,9 +89,8 @@ public class RecordingScreen extends Screen {
                 files.sort((a, b) -> Long.compare(b.modified(), a.modified()));
             }
         } catch (Exception ignored) {}
-        // 在线玩家（客户端可见的 tab 列表）
         onlinePlayers.clear();
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         if (mc.getConnection() != null) {
             mc.getConnection().getOnlinePlayers().forEach(p -> onlinePlayers.add(p.getProfile().getName()));
         }
@@ -128,81 +126,83 @@ public class RecordingScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float pt) {
         super.render(g, mouseX, mouseY, pt);
         // 面板
-        g.fill(left, top, left + PANEL_W, top + PANEL_H, 0xF016181D);
-        g.fill(left, top, left + PANEL_W, top + 22, 0xFF21262D);
-        g.drawString(font, "WorldReplay Recorder", left + 8, top + 7, 0xE6EDF3, false);
+        g.fill(left, top, left + panelW, top + panelH, 0xF016181D);
+        g.fill(left, top, left + panelW, top + 22, 0xFF21262D);
+        g.drawString(font, this.title, left + 8, top + 7, 0xE6EDF3);
 
-        // 左栏：文件列表
-        int listW = 260, listTop = top + 28;
-        g.fill(left + 6, listTop, left + 6 + listW, top + PANEL_H - 38, 0xFF1A1D23);
+        // 左栏：文件列表（占面板左侧 55%）
+        int listW = (int) (panelW * 0.55) - 8;
+        int listTop = top + 28;
+        int listBottom = top + panelH - 38;
+        g.fill(left + 6, listTop, left + 6 + listW, listBottom, 0xFF1A1D23);
         int y = listTop + 3 - fileScroll;
         for (int i = 0; i < files.size(); i++) {
-            if (y + ROW_H < listTop || y > top + PANEL_H - 40) { y += ROW_H; continue; }
+            if (y + 20 < listTop || y > listBottom) { y += 20; continue; }
             RecFile f = files.get(i);
-            boolean hov = mouseX >= left + 6 && mouseX < left + 6 + listW && mouseY >= y && mouseY < y + ROW_H;
-            int bg = i == selectedFile ? 0xFF1F6FEB : (hov ? 0xFF292E36 : 0x001A1D23);
-            if (bg != 0) g.fill(left + 6, y, left + 6 + listW, y + ROW_H - 1, bg);
+            boolean hov = mouseX >= left + 6 && mouseX < left + 6 + listW && mouseY >= y && mouseY < y + 20;
+            int bg = i == selectedFile ? 0xFF1F6FEB : (hov ? 0xFF292E36 : 0);
+            if (bg != 0) g.fill(left + 6, y, left + 6 + listW, y + 19, bg);
             String size = f.size() < 1024 ? f.size() + "B" : (f.size() / 1024) + "KB";
-            g.drawString(font, f.name(), left + 12, y + 6, i == selectedFile ? 0xFFFFFF : 0xC9D1D9, false);
-            g.drawString(font, size, left + 6 + listW - 42, y + 6, 0x6E7681, false);
-            y += ROW_H;
+            g.drawString(font, f.name(), left + 12, y + 6, i == selectedFile ? 0xFFFFFF : 0xC9D1D9);
+            g.drawString(font, size, left + 6 + listW - 40, y + 6, 0x6E7681);
+            y += 20;
         }
         if (files.isEmpty())
-            g.drawString(font, "(no recordings)", left + 12, listTop + 6, 0x6E7681, false);
+            g.drawString(font, tr("worldreplay.gui.empty"), left + 12, listTop + 6, 0x6E7681);
 
         // 右栏：录制设置
-        int rx = left + 276;
-        g.drawString(font, "Record who:", rx, top + 30, 0x8B949E, false);
-        // 玩家多选 chips（两列）
-        int py = top + 88;
-        int col = 0;
+        int rx = left + 6 + listW + 12;
+        g.drawString(font, tr("worldreplay.gui.recordwho"), rx, top + 28, 0x8B949E);
+        // 玩家多选 chips（单列，宽度自适应右栏）
+        int chipW = Math.min(200, panelW - (rx - left) - 10);
+        int chipX = rx;
+        int cy = top + 44;
         for (String p : onlinePlayers) {
             boolean on = recordAll || chosenPlayers.contains(p);
-            int w = Math.min(100, font.width(p) + 14);
-            int cx = rx + col * 105;
             int bgc = on ? 0xFF238636 : 0xFF292E36;
-            g.fill(cx, py, cx + w, py + 16, bgc);
-            g.drawString(font, p, cx + 5, py + 4, on ? 0xFFFFFF : 0xC9D1D9, false);
-            col++;
-            if (col >= 2) { col = 0; py += 19; }
+            g.fill(chipX, cy, chipX + chipW, cy + 16, bgc);
+            g.drawString(font, p, chipX + 5, cy + 4, on ? 0xFFFFFF : 0xC9D1D9);
+            cy += 19;
         }
+        if (onlinePlayers.isEmpty())
+            g.drawString(font, tr("worldreplay.gui.noplayers"), chipX, cy, 0x6E7681);
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         // 文件列表点击
+        int listW = (int) (panelW * 0.55) - 8;
         int listTop = top + 28;
+        int listBottom = top + panelH - 38;
         int y = listTop + 3 - fileScroll;
         for (int i = 0; i < files.size(); i++) {
-            if (mx >= left + 6 && mx < left + 266 && my >= y && my < y + ROW_H) {
-                selectedFile = i;
-                return true;
+            if (mx >= left + 6 && mx < left + 6 + listW && my >= y && my < y + 20) {
+                if (my < listBottom) { selectedFile = i; return true; }
             }
-            y += ROW_H;
+            y += 20;
         }
         // 玩家 chip 点击
-        int py = top + 88;
-        int col = 0;
+        int rx = left + 6 + listW + 12;
+        int chipW = Math.min(200, panelW - (rx - left) - 10);
+        int cy = top + 44;
         for (String p : onlinePlayers) {
-            int w = Math.min(100, font.width(p) + 14);
-            int cx = left + 276 + col * 105;
-            if (mx >= cx && mx < cx + w && my >= py && my < py + 16) {
+            if (mx >= rx && mx < rx + chipW && my >= cy && my < cy + 16) {
                 if (recordAll) { chosenPlayers.addAll(onlinePlayers); chosenPlayers.remove(p); recordAll = false; }
                 else if (chosenPlayers.contains(p)) chosenPlayers.remove(p);
                 else chosenPlayers.add(p);
                 return true;
             }
-            col++;
-            if (col >= 2) { col = 0; py += 19; }
+            cy += 19;
         }
         return super.mouseClicked(mx, my, button);
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double sx, double sy) {
-        if (mx >= left + 6 && mx < left + 266 && my >= top + 28 && my < top + PANEL_H - 38) {
-            int max = Math.max(0, files.size() * ROW_H - (PANEL_H - 70));
-            fileScroll = Math.max(0, Math.min(fileScroll - (int) (sy * ROW_H), max));
+        int listW = (int) (panelW * 0.55) - 8;
+        if (mx >= left + 6 && mx < left + 6 + listW && my >= top + 28 && my < top + panelH - 38) {
+            int max = Math.max(0, files.size() * 20 - (top + panelH - 38 - (top + 28)));
+            fileScroll = Math.max(0, Math.min(fileScroll - (int) (sy * 20), max));
             return true;
         }
         return super.mouseScrolled(mx, my, sx, sy);
@@ -210,7 +210,7 @@ public class RecordingScreen extends Screen {
 
     private void sendControl(boolean start) {
         java.util.List<java.util.UUID> ids = new ArrayList<>();
-        net.minecraft.client.multiplayer.ClientPacketListener conn = net.minecraft.client.Minecraft.getInstance().getConnection();
+        net.minecraft.client.multiplayer.ClientPacketListener conn = Minecraft.getInstance().getConnection();
         if (conn == null) return;
         for (String name : (recordAll ? onlinePlayers : chosenPlayers)) {
             var info = conn.getPlayerInfo(name);

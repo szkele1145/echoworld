@@ -1,1 +1,15 @@
-{"key.worldreplay.open": "打开 WorldReplay 录制库", "category.worldreplay": "WorldReplay"}
+{
+    "key.categories.worldreplay": "WorldReplay",
+    "key.worldreplay.open": "打开录制库",
+    "worldreplay.gui.title": "WorldReplay 录制库",
+    "worldreplay.gui.selectall": "全选",
+    "worldreplay.gui.clear": "清空",
+    "worldreplay.gui.start": "开始录制",
+    "worldreplay.gui.stopall": "停止录制",
+    "worldreplay.gui.delete": "删除",
+    "worldreplay.gui.replay": "回放",
+    "worldreplay.gui.recordwho": "录制对象：",
+    "worldreplay.gui.empty": "（暂无录制）",
+    "worldreplay.gui.noplayers": "（无在线玩家）",
+    "worldreplay.gui.hint": "按 O 键打开录制库（游戏内）"
+}
