@@ -60,7 +60,10 @@ public final class EventEncoder {
         String v = value == null ? "" : value;
         byte[] bytes = v.getBytes(StandardCharsets.UTF_8);
         if (bytes.length > 65000) {
-            v = new String(bytes, 0, 65000, StandardCharsets.UTF_8) + "…[truncated]";
+            // 回退到 UTF-8 字符边界（不切开多字节字符），再补截断标记
+            int end = 65000;
+            while (end > 0 && (bytes[end] & 0xC0) == 0x80) end--;   // 跳过 10xxxxxx 后缀字节
+            v = new String(bytes, 0, end, StandardCharsets.UTF_8) + "…[truncated]";
         }
         out.writeUTF(v);
     }
