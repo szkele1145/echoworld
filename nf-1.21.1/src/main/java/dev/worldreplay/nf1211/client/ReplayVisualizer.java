@@ -141,12 +141,26 @@ public final class ReplayVisualizer {
             PoseStackAccessor.end();
         }
 
-        // HUD 角标：回放状态条（倍速 + 暂停态），画在屏幕左上（不与世界渲染互斥）
+        // HUD 角标：回放状态条（倍速 + 暂停态 + 进度条），画在屏幕左上（不与世界渲染互斥）
         if (mc.gui != null) {
             String state = isPaused() ? "[WorldReplay] ⏸ paused " + fmtSpeed() + " (P resume)"
                     : "[WorldReplay] ▶ " + fmtSpeed() + "x";
             var gg = new net.minecraft.client.gui.GuiGraphics(mc, mc.renderBuffers().bufferSource());
             gg.drawString(font, state, 8, 8, 0xFFFFD700, true);
+            // 进度条：当前 tick / 总时长（首事件 tick 到 endTick 的位置百分比）
+            long firstTick = timeline.isEmpty() ? 0 : timeline.get(0).tick();
+            long endTick = engine.endTick();
+            long span = Math.max(1, endTick - firstTick);
+            double progress = Math.max(0, Math.min(1, (currentTick - firstTick) / (double) span));
+            int barW = 120, barX = 8, barY = 20;
+            gg.fill(barX, barY, barX + barW, barY + 3, 0x80000000);              // 轨道
+            gg.fill(barX, barY, barX + (int) (barW * progress), barY + 3, 0xFFFFD700);   // 进度
+            // 时间标签：游戏时长（分:秒）
+            long playedSecs = (currentTick - firstTick) / 20;
+            long totalSecs = span / 20;
+            String time = String.format("%d:%02d / %d:%02d", playedSecs / 60, playedSecs % 60,
+                    totalSecs / 60, totalSecs % 60);
+            gg.drawString(font, time, barX + barW + 6, barY - 3, 0xFF8B949E, true);
         }
     }
 
