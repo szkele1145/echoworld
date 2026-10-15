@@ -103,6 +103,11 @@ public final class WorldReplayRecorder {
     // ---- 事件捕获 ----
 
     private static void capture(ServerPlayer sp, String type, String data) {
+        captureAt(sp, type, data, sp.getX(), sp.getY(), sp.getZ());
+    }
+
+    /** 带显式坐标的事件捕获（方块事件用方块位置，非玩家位置）。 */
+    private static void captureAt(ServerPlayer sp, String type, String data, double x, double y, double z) {
         RecordingSession session = SESSIONS.get(sp.getUUID());
         if (session == null) return;
         Event e = new Event(
@@ -110,7 +115,7 @@ public final class WorldReplayRecorder {
                 type,
                 sp.getUUID().toString(),
                 sp.level().dimension().location().toString(),
-                sp.getX(), sp.getY(), sp.getZ(),
+                x, y, z,
                 data);
         session.append(e);
     }
@@ -118,22 +123,26 @@ public final class WorldReplayRecorder {
     @SubscribeEvent
     public static void onBreak(BlockEvent.BreakEvent event) {
         if (!(event.getPlayer() instanceof ServerPlayer sp)) return;
-        capture(sp, "block_break",
-                event.getState().getBlock().builtInRegistryHolder().getRegisteredName());
+        captureAt(sp, "block_break",
+                event.getState().getBlock().builtInRegistryHolder().getRegisteredName(),
+                event.getPos().getX(), event.getPos().getY(), event.getPos().getZ());
     }
 
     @SubscribeEvent
     public static void onPlace(BlockEvent.EntityPlaceEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
-        capture(sp, "block_place",
-                event.getPlacedBlock().getBlock().builtInRegistryHolder().getRegisteredName());
+        captureAt(sp, "block_place",
+                event.getPlacedBlock().getBlock().builtInRegistryHolder().getRegisteredName(),
+                event.getPos().getX(), event.getPos().getY(), event.getPos().getZ());
     }
 
     @SubscribeEvent
     public static void onInteract(PlayerInteractEvent.RightClickBlock event) {
         if (event.getLevel().isClientSide()) return;
+        if (event.getHand() != net.minecraft.world.InteractionHand.MAIN_HAND) return;   // 主手一次（副手不重复记）
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
-        capture(sp, "block_use",
-                event.getLevel().getBlockState(event.getPos()).getBlock().builtInRegistryHolder().getRegisteredName());
+        captureAt(sp, "block_use",
+                event.getLevel().getBlockState(event.getPos()).getBlock().builtInRegistryHolder().getRegisteredName(),
+                event.getPos().getX(), event.getPos().getY(), event.getPos().getZ());
     }
 }
