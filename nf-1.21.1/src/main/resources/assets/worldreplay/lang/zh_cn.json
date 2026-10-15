@@ -12,5 +12,6 @@
     "worldreplay.gui.recordwho": "录制对象：",
     "worldreplay.gui.empty": "（暂无录制）",
     "worldreplay.gui.noplayers": "（无在线玩家）",
+    "worldreplay.gui.delhint": "按 Shift+DEL 删除所选录制",
     "worldreplay.gui.hint": "按 O 键打开录制库（游戏内）"
 }

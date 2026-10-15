@@ -12,5 +12,6 @@
     "worldreplay.gui.recordwho": "Record who:",
     "worldreplay.gui.empty": "(no recordings)",
     "worldreplay.gui.noplayers": "(no players online)",
+    "worldreplay.gui.delhint": "Press Shift+DEL to delete the selected recording",
     "worldreplay.gui.hint": "Press O to open the recorder (in-game)"
 }

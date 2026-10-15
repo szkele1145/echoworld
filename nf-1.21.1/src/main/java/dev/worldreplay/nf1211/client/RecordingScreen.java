@@ -251,7 +251,16 @@ public class RecordingScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_DELETE) {
-            requestSelected(RecordListPackets.RequestRecording.ACTION_DELETE);
+            if ((modifiers & org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT) != 0) {
+                requestSelected(RecordListPackets.RequestRecording.ACTION_DELETE);   // Shift+DEL 才真删（防手滑）
+            } else {
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.player != null) {
+                    mc.player.displayClientMessage(Component.literal(
+                            "§e[WorldReplay] "), false);
+                    mc.player.displayClientMessage(tr("worldreplay.gui.delhint"), true);
+                }
+            }
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
