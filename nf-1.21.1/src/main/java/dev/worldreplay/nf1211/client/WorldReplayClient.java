@@ -23,9 +23,14 @@ public final class WorldReplayClient {
     public static final KeyMapping OPEN_GUI = new KeyMapping(
             "key.worldreplay.open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, "key.categories.worldreplay");
 
+    /** P 键：暂停/继续回放。 */
+    public static final KeyMapping PAUSE_REPLAY = new KeyMapping(
+            "key.worldreplay.pause", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, "key.categories.worldreplay");
+
     @SubscribeEvent
     public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
         event.register(OPEN_GUI);
+        event.register(PAUSE_REPLAY);
     }
 
     @SubscribeEvent
@@ -37,6 +42,13 @@ public final class WorldReplayClient {
             // 服务端回 RecordList 后由 ClientPayloadHandlers 开屏（见该类）
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                     new dev.worldreplay.nf1211.RecordListPackets.RequestRecordList());
+        }
+        while (PAUSE_REPLAY.consumeClick()) {
+            if (ReplayVisualizer.isPaused()) {
+                ReplayVisualizer.resume();
+            } else if (ReplayVisualizer.isReplaying()) {
+                ReplayVisualizer.pause();
+            }
         }
         ReplayVisualizer.tick();
     }

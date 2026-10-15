@@ -52,6 +52,29 @@ public final class ReplayVisualizer {
 
     public static boolean isReplaying() { return engine != null && engine.isPlaying(); }
 
+    /** 回放中且引擎存在（暂停时也算——暂停/继续判定用）。 */
+    public static boolean hasEngine() { return engine != null; }
+
+    /** 暂停回放。 */
+    public static void pause() {
+        if (engine != null) engine.pause();
+    }
+
+    /** 继续回放。 */
+    public static void resume() {
+        if (engine != null) engine.play();
+    }
+
+    /** 是否处于暂停态（引擎在但没在播）。 */
+    public static boolean isPaused() { return engine != null && !engine.isPlaying(); }
+
+    /** 调倍速（0.25~64 引擎内钳制）。 */
+    public static void setSpeed(double speed) {
+        if (engine != null) engine.setSpeed(speed);
+    }
+
+    public static double getSpeed() { return engine != null ? engine.getSpeed() : 1.0; }
+
     /** 每客户端 tick 推进（WorldReplayClient.onClientTick 调用）。 */
     public static void tick() {
         if (engine != null && engine.isPlaying()) engine.tick();

@@ -56,8 +56,13 @@ public final class EventEncoder {
     }
 
     private static void writeUtf(DataOutputStream out, String value) throws IOException {
-        // DataOutputStream.writeUTF 对 null 不友好，统一编码 null -> ""
-        out.writeUTF(value == null ? "" : value);
+        // null -> ""；超长防御：writeUTF 上限 65535 字节，超限时截断并尾标记（编码永不抛异常）
+        String v = value == null ? "" : value;
+        byte[] bytes = v.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > 65000) {
+            v = new String(bytes, 0, 65000, StandardCharsets.UTF_8) + "…[truncated]";
+        }
+        out.writeUTF(v);
     }
 
     /** 便于调试的十六进制表示。 */

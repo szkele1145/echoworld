@@ -1,6 +1,7 @@
 {
     "key.categories.worldreplay": "WorldReplay",
     "key.worldreplay.open": "打开录制库",
+    "key.worldreplay.pause": "暂停/继续回放",
     "worldreplay.gui.title": "WorldReplay 录制库",
     "worldreplay.gui.selectall": "全选",
     "worldreplay.gui.clear": "清空",

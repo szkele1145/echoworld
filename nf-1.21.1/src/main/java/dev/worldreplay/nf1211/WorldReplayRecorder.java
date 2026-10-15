@@ -16,8 +16,6 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * WorldReplay 行为捕获（NeoForge 1.21.1 平台层）�? * 把平台事件翻译为 core 统一 Event 格式，写�?RecordingSession�? *
@@ -49,6 +47,8 @@ public final class WorldReplayRecorder {
         UUID id = sp.getUUID();
         RecordingSession session = SESSIONS.remove(id);
         if (session != null) {
+            // 会话时长闭环：先 stopRecord 落定 endTick（durationTicks 精确化），再导出
+            session.stopRecord(sp.serverLevel().getGameTime());
             // 落盘：.worldreplay/recordings/<uuid>-<startTick>.wrp（core 二进制格式，magic 0xE7C0）
             try {
                 byte[] data = session.export();
@@ -86,6 +86,8 @@ public final class WorldReplayRecorder {
         if (session == null) return;
         var sp = server.getPlayerList().getPlayer(id);
         String name = sp != null ? sp.getName().getString() : id.toString();
+        // 会话时长闭环（与 logout 路径一致）
+        session.stopRecord(server.overworld().getGameTime());
         try {
             byte[] data = session.export();
             Path dir = server.getServerDirectory().resolve("worldreplay").resolve("recordings");

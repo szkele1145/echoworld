@@ -30,6 +30,9 @@ public record Event(long tick, String type, String playerId, String dimension,
         if (data == null) {
             data = EMPTY_DATA;
         }
+        if (dimension == null) {
+            dimension = "minecraft:overworld";   // 兜底：null 维度不穿透到编码层（旧 bug 修复）
+        }
     }
 
     /** 校验事件是否有效：tick 非负且 type 非空。 */

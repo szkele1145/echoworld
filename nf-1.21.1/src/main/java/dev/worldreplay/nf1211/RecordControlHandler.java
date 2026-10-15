@@ -137,7 +137,8 @@ public final class RecordControlHandler {
         if (sender == null || !sender.hasPermissions(2)) return;   // OP 限定
         MinecraftServer server = sender.server;
         List<UUID> targets = new ArrayList<>(payload.players());
-        if (targets.isEmpty() && payload.start()) {
+        // 空列表 = 全体在线（start 与 stop 对称——修：全选停止不再漏人）
+        if (targets.isEmpty()) {
             for (ServerPlayer sp : server.getPlayerList().getPlayers()) targets.add(sp.getUUID());
         }
         for (UUID id : targets) {
