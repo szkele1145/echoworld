@@ -52,12 +52,15 @@ public final class ClientPayloadHandlers {
         });
     }
 
-    /** S2C RecordingData：按文件名聚合分片，收齐后解码并开启回放。 */
+    /** S2C RecordingData：按文件名聚合分片，chunkIndex==0 重置旧缓冲（防双击拼接污染），收齐后解码并开启回放。 */
     public static void handleRecordingData(RecordListPackets.RecordingData payload) {
         Minecraft mc = Minecraft.getInstance();
         mc.execute(() -> {
             String fileName = payload.fileName();
             try {
+                if (payload.chunkIndex() == 0) {
+                    incoming.remove(fileName);   // 新一轮传输：丢弃旧聚合（双击 Replay 的污染防护）
+                }
                 ByteArrayOutputStream bos = incoming.computeIfAbsent(
                         fileName, k -> new ByteArrayOutputStream());
                 bos.write(payload.data());

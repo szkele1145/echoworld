@@ -80,7 +80,11 @@ public final class RecordListPackets {
      * S2C：.wrp 文件数据分片。{@code last=true} 表示该文件的最后一片。
      * 客户端按 fileName 聚合，收齐后整体解码进入回放。
      */
-    public record RecordingData(String fileName, boolean last, byte[] data) implements CustomPacketPayload {
+    /**
+     * S2C：.wrp 文件数据分片。{@code chunkIndex==0} 表示新文件开始
+     * （客户端据此重置旧聚合缓冲——防快速双击 Replay 时两份数据拼接污染）。
+     */
+    public record RecordingData(String fileName, int chunkIndex, boolean last, byte[] data) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<RecordingData> TYPE =
                 new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
                         WorldReplayNeoForge.MOD_ID, "recording_data"));
@@ -89,14 +93,16 @@ public final class RecordListPackets {
             @Override
             public RecordingData decode(FriendlyByteBuf buf) {
                 String fileName = buf.readUtf();
+                int chunkIndex = buf.readVarInt();
                 boolean last = buf.readBoolean();
                 byte[] data = buf.readByteArray();
-                return new RecordingData(fileName, last, data);
+                return new RecordingData(fileName, chunkIndex, last, data);
             }
 
             @Override
             public void encode(FriendlyByteBuf buf, RecordingData p) {
                 buf.writeUtf(p.fileName());
+                buf.writeVarInt(p.chunkIndex());
                 buf.writeBoolean(p.last());
                 buf.writeByteArray(p.data());
             }

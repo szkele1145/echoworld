@@ -149,11 +149,12 @@ public final class RecordControlHandler {
         try {
             byte[] data = Files.readAllBytes(f);
             if (data.length == 0) return;
+            int chunkIndex = 0;
             for (int off = 0; off < data.length; ) {
                 int len = Math.min(RecordListPackets.MAX_CHUNK, data.length - off);
                 boolean last = off + len >= data.length;
                 PacketDistributor.sendToPlayer(sender, new RecordListPackets.RecordingData(
-                        fileName, last, java.util.Arrays.copyOfRange(data, off, off + len)));
+                        fileName, chunkIndex++, last, java.util.Arrays.copyOfRange(data, off, off + len)));
                 off += len;
             }
         } catch (Exception ignored) {}

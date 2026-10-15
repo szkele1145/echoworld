@@ -8,9 +8,7 @@ pluginManagement {
     }
 }
 
-plugins {
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
-}
+
 
 rootProject.name = 'echoworld-nf-1.21.1'
 
