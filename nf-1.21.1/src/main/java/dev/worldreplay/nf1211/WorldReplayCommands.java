@@ -19,8 +19,9 @@ import java.util.List;
  *
  * <p>子命令：
  * <ul>
- *   <li>/echoreplay gui —— 提示 GUI 打开方式（客户端 O 键；专用服无 GUI）</li>
- *   <li>/echoreplay <file> —— 服务端加载并校验录制，反馈事件数</li>
+ *   <li>/echoreplay gui —— 服务端扫描 recordings 目录并把文件列表推给执行者，
+ *       客户端收到 OpenRecordLibrary + RecordList 后打开录制库（v0.1.9 起无 O 键）</li>
+ *   <li>/echoreplay &lt;file&gt; —— 服务端加载并校验录制，反馈事件数</li>
  * </ul></p>
  */
 public final class WorldReplayCommands {
@@ -31,13 +32,12 @@ public final class WorldReplayCommands {
                 .requires(src -> src.hasPermission(2))
                 .then(Commands.literal("gui").executes(ctx -> {
                     // Bug 1 修复：服务端扫描 recordings 目录，把列表发给执行者，
-                    // 客户端收到 RecordList 后打开 GUI（不再读客户端本地目录）
+                    // 客户端收到 OpenRecordLibrary + RecordList 后打开 GUI
+                    // （不再读客户端本地目录；v0.1.9 起也不再依赖 O 键）
                     CommandSourceStack source = ctx.getSource();
                     if (source.getPlayer() != null) {
-                        RecordControlHandler.sendRecordList(source.getPlayer());
+                        RecordControlHandler.openRecordLibrary(source.getPlayer());
                     }
-                    source.sendSuccess(() ->
-                            Component.translatable("worldreplay.gui.hint"), false);
                     return 1;
                 }))
                 .then(Commands.argument("file", StringArgumentType.string())

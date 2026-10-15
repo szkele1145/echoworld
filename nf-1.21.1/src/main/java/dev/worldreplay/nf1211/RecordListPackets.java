@@ -18,9 +18,11 @@ import java.util.List;
  * <p>通道一览：
  * <ul>
  *   <li>S2C {@link RecordList} —— 服务端扫描 recordings 目录后下发的完整文件列表</li>
+ *   <li>S2C {@link OpenRecordLibrary} —— /echoreplay gui 的开屏信号（v0.1.9，取代 O 键）</li>
  *   <li>S2C {@link RecordingData} —— .wrp 文件数据分片（回放请求的响应）</li>
- *   <li>C2S {@link RequestRecordList} —— 客户端请求文件列表（O 键 / 打开 GUI）</li>
+ *   <li>C2S {@link RequestRecordList} —— 请求文件列表（保留以兼容 0.1.8 及更早客户端的 O 键）</li>
  *   <li>C2S {@link RequestRecording} —— 客户端请求回放或删除某文件</li>
+ *   <li>C2S {@link RequestRename} —— 客户端请求重命名某文件（v0.1.9）</li>
  * </ul></p>
  *
  * <p>{@link RecordingData} 采用分片设计：原版 S2C 自定义包上限约 32KB
@@ -136,7 +138,7 @@ public final class RecordListPackets {
         public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
-    // ---- C2S：请求回放/删除 ----
+    // ---- C2S：请求回放/删除（v0.1.8 格式，保持 2 字段不动）----
 
     /** C2S：请求服务端执行回放（回传文件数据）或删除（回传刷新后的列表）。 */
     public record RequestRecording(String fileName, int action) implements CustomPacketPayload {
@@ -159,6 +161,61 @@ public final class RecordListPackets {
             public void encode(FriendlyByteBuf buf, RequestRecording p) {
                 buf.writeUtf(p.fileName());
                 buf.writeVarInt(p.action());
+            }
+        };
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    // ---- C2S：请求重命名（v0.1.9 新增，独立 payload：老客户端不会发，新客户端对老服务端也兼容）----
+
+    /** C2S：重命名一条录制（服务端改名后重发 {@link RecordList} 刷新 GUI）。 */
+    public record RequestRename(String fileName, String newName) implements CustomPacketPayload {
+        public static final CustomPacketPayload.Type<RequestRename> TYPE =
+                new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                        WorldReplayNeoForge.MOD_ID, "request_rename"));
+
+        public static final StreamCodec<FriendlyByteBuf, RequestRename> CODEC = new StreamCodec<>() {
+            @Override
+            public RequestRename decode(FriendlyByteBuf buf) {
+                return new RequestRename(buf.readUtf(), buf.readUtf());
+            }
+
+            @Override
+            public void encode(FriendlyByteBuf buf, RequestRename p) {
+                buf.writeUtf(p.fileName());
+                buf.writeUtf(p.newName());
+            }
+        };
+
+        @Override
+        public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
+    // ---- S2C：请求客户端打开录制库（v0.1.9，取代 O 键）----
+
+    /**
+     * S2C：请客户端打开录制管理屏。
+     *
+     * <p>v0.1.9 起录制库<b>只能</b>由 {@code /echoreplay gui} 打开：服务端先发本包
+     * 再发 {@link RecordList}，客户端据此决定“开新屏”还是“仅刷新已开的屏”，
+     * 不再由客户端按键触发。无字段，独立通道（老客户端收到未知 optional 通道直接忽略）。</p>
+     */
+    public record OpenRecordLibrary() implements CustomPacketPayload {
+        public static final CustomPacketPayload.Type<OpenRecordLibrary> TYPE =
+                new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(
+                        WorldReplayNeoForge.MOD_ID, "open_record_library"));
+
+        public static final StreamCodec<FriendlyByteBuf, OpenRecordLibrary> CODEC = new StreamCodec<>() {
+            @Override
+            public OpenRecordLibrary decode(FriendlyByteBuf buf) {
+                return new OpenRecordLibrary();
+            }
+
+            @Override
+            public void encode(FriendlyByteBuf buf, OpenRecordLibrary p) {
+                // 无字段
             }
         };
 

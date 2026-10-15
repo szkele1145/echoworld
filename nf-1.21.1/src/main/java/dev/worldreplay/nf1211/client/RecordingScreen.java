@@ -11,9 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * WorldReplay 录制管理屏：O 键或 /echoreplay gui 打开。
+ * WorldReplay 录制管理屏：仅由命令 {@code /echoreplay gui} 打开（v0.1.9 起无 O 键）。
  *
- * <p>左栏：录制文件列表（点击选中，DEL 删除，滚轮翻页）。
+ * <p>左栏：录制文件列表（点击选中，Shift+DEL 删除，滚轮翻页）。
  * 右栏：录制设置——在线玩家多选（全选/清空）+ 开始/停止。</p>
  *
  * <p><b>v0.2.1 Bug 1 修复</b>：录制文件落盘在<b>服务端</b>目录，客户端本地没有。
@@ -49,6 +49,14 @@ public class RecordingScreen extends Screen {
     private boolean recordAll = false;
 
     private Button startBtn, stopBtn;
+
+    // ---- v0.1.9 重命名：完全自绘输入态（不依赖 EditBox widget 的渲染顺序）----
+    /** 是否处于“输入新名字”模式。 */
+    private boolean renaming;
+    /** 输入缓冲（提交前只存在于客户端）。 */
+    private String renameText = "";
+    /** 客户端输入上限（字符数）；服务端另有更宽松的 96 上限并会清洗非法字符。 */
+    private static final int RENAME_MAX = 64;
 
     /** 从服务端下发的列表构造（唯一入口：ClientPayloadHandlers 开屏）。 */
     public RecordingScreen(List<RecordListPackets.RecordListEntry> entries) {
@@ -111,15 +119,17 @@ public class RecordingScreen extends Screen {
                 .bounds(rightX, bottomY - 24, actionW, 20).build();
         addRenderableWidget(stopBtn);
 
-        // 删除 / 回放：限制在左栏宽度内自适应（原 100+100 固定宽在窄面板上
-        // 会与右栏底部按钮重叠），两按钮并排恰好铺满左栏底边
-        int fileBtnW = Math.max(40, (listW - 6) / 2);
+        // 删除 / 回放 / 重命名：限制在左栏宽度内自适应（原 100+100 固定宽在窄面板上
+        // 会与右栏底部按钮重叠），三按钮并排恰好铺满左栏底边（v0.1.9 加入重命名）
+        int fileBtnW = Math.max(40, (listW - 8) / 3);
         addRenderableWidget(Button.builder(tr("worldreplay.gui.delete"), b -> requestSelected(
                 RecordListPackets.RequestRecording.ACTION_DELETE))
                 .bounds(left + 8, bottomY, fileBtnW, 20).build());
         addRenderableWidget(Button.builder(tr("worldreplay.gui.replay"), b -> requestSelected(
                 RecordListPackets.RequestRecording.ACTION_REPLAY))
-                .bounds(left + 12 + fileBtnW, bottomY, fileBtnW, 20).build());
+                .bounds(left + 10 + fileBtnW, bottomY, fileBtnW, 20).build());
+        addRenderableWidget(Button.builder(tr("worldreplay.gui.rename"), b -> beginRename())
+                .bounds(left + 12 + fileBtnW * 2, bottomY, fileBtnW, 20).build());
 
         refreshPlayers();
     }
@@ -133,6 +143,28 @@ public class RecordingScreen extends Screen {
         if (mc.getConnection() != null) {
             mc.getConnection().getOnlinePlayers().forEach(p -> onlinePlayers.add(p.getProfile().getName()));
         }
+    }
+
+    /** 进入重命名输入态：预填当前文件名去掉 .wrp 后缀（便于局部修改）。 */
+    private void beginRename() {
+        if (selectedFile < 0 || selectedFile >= files.size()) return;
+        String n = files.get(selectedFile).fileName();
+        if (n.endsWith(".wrp")) n = n.substring(0, n.length() - 4);
+        renameText = n;
+        renaming = true;
+    }
+
+    /** 提交重命名：发 C2S，随后由服务端重发列表刷新（失败也只是名字没变）。 */
+    private void submitRename() {
+        if (selectedFile < 0 || selectedFile >= files.size()) { renaming = false; return; }
+        String target = renameText.trim();
+        String current = files.get(selectedFile).fileName();
+        String currentBase = current.endsWith(".wrp") ? current.substring(0, current.length() - 4) : current;
+        renaming = false;
+        if (target.isEmpty() || target.equals(currentBase)) return;   // 空名/未改动：直接退出
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                new RecordListPackets.RequestRename(current, target));
+        selectedFile = -1;
     }
 
     /** Bug 1 修复：删除/回放都改为 C2S 请求，由服务端在其目录里执行。 */
@@ -175,6 +207,26 @@ public class RecordingScreen extends Screen {
         if (files.isEmpty())
             g.drawString(font, tr("worldreplay.gui.empty"), left + 12, listTop + 6, 0x6E7681);
 
+        // v0.1.9：重命名输入态——在左栏底部压一条输入框（自绘，避免 widget 增删导致闪烁）
+        if (renaming) {
+            int boxY = listBottom - 22;
+            g.fill(left + 6, boxY, left + 6 + listW, boxY + 20, 0xFF0D1117);
+            g.fill(left + 6, boxY, left + 6 + listW, boxY + 1, 0xFF1F6FEB);
+            g.fill(left + 6, boxY + 19, left + 6 + listW, boxY + 20, 0xFF1F6FEB);
+            String shown = renameText == null ? "" : renameText;
+            // 超宽时右侧截断显示（光标永远贴输入末尾）
+            while (font.width(shown) > listW - 12 && shown.length() > 1) {
+                shown = shown.substring(1);
+            }
+            g.drawString(font, shown, left + 10, boxY + 6, 0xFFFFFF);
+            boolean caretOn = (System.currentTimeMillis() / 500L) % 2L == 0L;
+            if (caretOn) {
+                int cx = left + 10 + font.width(shown) + 1;
+                g.fill(cx, boxY + 4, cx + 1, boxY + 16, 0xFFFFFFFF);
+            }
+            g.drawString(font, tr("worldreplay.gui.renamehint"), left + 8, boxY - 12, 0x8B949E);
+        }
+
         // 右栏：录制设置
         g.drawString(font, tr("worldreplay.gui.recordwho"), rightX, top + 28, 0x8B949E);
         // 玩家多选 chips（单列，宽度自适应右栏；底部截断避免压到 Start/Stop 按钮）
@@ -195,13 +247,28 @@ public class RecordingScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
-        // 文件列表点击
+        // v0.1.9：重命名输入态下，点击输入框内=继续编辑；点击别处=提交并退出
+        if (renaming) {
+            int boxY = top + panelH - 38 - 22;
+            boolean inBox = mx >= left + 6 && mx < left + 6 + listW && my >= boxY && my < boxY + 20;
+            if (!inBox) submitRename();
+            return true;
+        }
+        // v0.1.9 Bug 修复：以下自绘热区只响应左键。此前不判 button，
+        // 右键点列表行会直接选中、右键点玩家 chip 会静默改录制对象，
+        // 都是没反馈的误操作；右键继续交给 super 处理（原版无行为，安全）。
+        if (button != 0) return super.mouseClicked(mx, my, button);
+        // 文件列表点击（可见区裁剪：与渲染的 listTop/listBottom 保持一致，避免点中滚出视野的行）
         int listTop = top + 28;
         int listBottom = top + panelH - 38;
         int y = listTop + 3 - fileScroll;
         for (int i = 0; i < files.size(); i++) {
-            if (mx >= left + 6 && mx < left + 6 + listW && my >= y && my < y + 20) {
-                if (my < listBottom) { selectedFile = i; return true; }
+            // 可见区裁剪（与 render 一致）：滚出视野的行不可点，否则点面板标题会选到隐藏行
+            if (y + 20 >= listTop && y < listBottom
+                    && mx >= left + 6 && mx < left + 6 + listW
+                    && my >= y && my < y + 20 && my >= listTop && my < listBottom) {
+                selectedFile = i;
+                return true;
             }
             y += 20;
         }
@@ -249,15 +316,46 @@ public class RecordingScreen extends Screen {
     }
 
     @Override
+    public boolean charTyped(char c, int modifiers) {
+        if (renaming) {
+            // 只收可打印字符，且过滤掉路径分隔符（服务端还会再清洗一次，这里先给即时反馈）
+            if (c >= 0x20 && c != 0x7F && c != '/' && c != '\\' && c != ':' && c != '*'
+                    && c != '?' && c != '"' && c != '<' && c != '>' && c != '|'
+                    && renameText.length() < RENAME_MAX) {
+                renameText += c;
+            }
+            return true;
+        }
+        return super.charTyped(c, modifiers);
+    }
+
+    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // v0.1.9：重命名输入态优先吃掉所有按键（DEL 在此处是删字符，不是删文件）
+        if (renaming) {
+            switch (keyCode) {
+                case org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE -> { renaming = false; return true; }
+                case org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER -> {
+                    submitRename();
+                    return true;
+                }
+                case org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE -> {
+                    if (!renameText.isEmpty()) renameText = renameText.substring(0, renameText.length() - 1);
+                    return true;
+                }
+                case org.lwjgl.glfw.GLFW.GLFW_KEY_DELETE -> {
+                    renameText = "";
+                    return true;
+                }
+                default -> { return true; }   // 其余按键（含 Ctrl 组合）一律吞掉，防止误触界面控件
+            }
+        }
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_DELETE) {
             if ((modifiers & org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT) != 0) {
                 requestSelected(RecordListPackets.RequestRecording.ACTION_DELETE);   // Shift+DEL 才真删（防手滑）
             } else {
                 Minecraft mc = Minecraft.getInstance();
                 if (mc.player != null) {
-                    mc.player.displayClientMessage(Component.literal(
-                            "§e[WorldReplay] "), false);
                     mc.player.displayClientMessage(tr("worldreplay.gui.delhint"), true);
                 }
             }

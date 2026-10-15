@@ -33,10 +33,29 @@ public final class ClientPayloadHandlers {
     /** 列表暂存：网络线程写入，主线程读取后清空。 */
     private static volatile List<RecordListPackets.RecordListEntry> pendingList;
 
+    /**
+     * 是否“本次列表下发需要开屏”（v0.1.9）。
+     *
+     * <p>只有 {@link #handleOpenRecordLibrary} 会置位，即只有 {@code /echoreplay gui}
+     * 能打开录制库；删除/重命名后的列表刷新不带本标志，只更新已开的屏，
+     * 绝不会凭空弹出界面（用户明确要求：不要 O 键自动开屏）。</p>
+     */
+    private static volatile boolean pendingOpen;
+
     /** 文件分片聚合：fileName -> 已收字节（同连接 TCP 保序，无需乱序重组）。 */
     private static final Map<String, ByteArrayOutputStream> incoming = new HashMap<>();
 
-    /** S2C RecordList：暂存列表，主线程里更新已开的屏或开新屏。 */
+    /**
+     * S2C OpenRecordLibrary：/echoreplay gui 的开屏信号。
+     *
+     * <p>只置标志、不直接开屏——真正的界面构建发生在紧随其后的 {@link #handleRecordList}
+     * 里（需要文件列表作为构造参数）。在网络线程写 volatile，保证先于列表包可见。</p>
+     */
+    public static void handleOpenRecordLibrary(RecordListPackets.OpenRecordLibrary payload) {
+        pendingOpen = true;
+    }
+
+    /** S2C RecordList：暂存列表，主线程里刷新已开的屏，或按 {@link #pendingOpen} 开新屏。 */
     public static void handleRecordList(RecordListPackets.RecordList payload) {
         pendingList = List.copyOf(payload.entries());
         Minecraft mc = Minecraft.getInstance();
@@ -44,11 +63,14 @@ public final class ClientPayloadHandlers {
             List<RecordListPackets.RecordListEntry> list = pendingList;
             pendingList = null;
             if (list == null) return;   // 重复处理已被消费，防御
+            boolean open = pendingOpen;
+            pendingOpen = false;
             if (mc.screen instanceof RecordingScreen screen) {
-                screen.updateFiles(list);   // GUI 已开（如删除后刷新）
-            } else if (mc.player != null) {
-                mc.setScreen(new RecordingScreen(list));   // O 键 / 命令请求后首次开屏
+                screen.updateFiles(list);   // GUI 已开（如删除/重命名后刷新）
+            } else if (open && mc.player != null) {
+                mc.setScreen(new RecordingScreen(list));   // 仅 /echoreplay gui 触发
             }
+            // open=false 且未开屏：丢弃（例如别人执行命令时自己刚好收了列表）
         });
     }
 
