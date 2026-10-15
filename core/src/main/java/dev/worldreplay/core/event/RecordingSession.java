@@ -57,18 +57,15 @@ public class RecordingSession {
         return events.size();
     }
 
-    /** 会话时长（tick）；未停止时以最后一条事件的 tick 近似。 */
+    /** 会话时长（tick）；未停止时以最后一条事件的 tick 近似（O(1)：事件严格非降序）。 */
     public long durationTicks() {
         if (endTick >= 0) {
             return endTick - startTick;
         }
-        long last = startTick;
-        for (Event e : events) {
-            if (e.tick() > last) {
-                last = e.tick();
-            }
+        if (events.isEmpty()) {
+            return 0;
         }
-        return last - startTick;
+        return events.get(events.size() - 1).tick() - startTick;
     }
 
     /** 会话起始 tick。 */
