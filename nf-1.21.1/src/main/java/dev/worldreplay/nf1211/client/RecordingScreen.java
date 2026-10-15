@@ -64,7 +64,7 @@ public class RecordingScreen extends Screen {
         if (entries != null) files.addAll(entries);
     }
 
-    /** 服务端重发列表时刷新（删除后、gui 分支重开）。保留同名选中项。 */
+    /** 服务端重发列表时刷新（删除/重命名后）。保留同名选中项，改名的那条会因名字变化而落选。 */
     public void updateFiles(List<RecordListPackets.RecordListEntry> entries) {
         String selected = selectedFile >= 0 && selectedFile < files.size()
                 ? files.get(selectedFile).fileName() : null;

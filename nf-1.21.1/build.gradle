@@ -15,7 +15,9 @@ neoForge {
     version = project.neo_version
 
     runs {
-        client { client() }
+        client {
+            client()
+        }
         server {
             server()
             programArgument '--nogui'
