@@ -36,8 +36,8 @@ public final class RecordListPackets {
 
     // ---- 数据记录（非 payload，仅作列表条目）----
 
-    /** 一条录制文件条目：文件名 + 字节数 + 修改时间毫秒。 */
-    public record RecordListEntry(String fileName, long size, long modified) {}
+    /** 一条录制文件条目：文件名 + 字节数 + 修改时间毫秒 + 事件数。 */
+    public record RecordListEntry(String fileName, long size, long modified, int events) {}
 
     // ---- S2C：文件列表 ----
 
@@ -53,7 +53,7 @@ public final class RecordListPackets {
                 int n = buf.readVarInt();
                 List<RecordListEntry> list = new ArrayList<>(Math.min(n, 1024));
                 for (int i = 0; i < n; i++) {
-                    list.add(new RecordListEntry(buf.readUtf(), buf.readLong(), buf.readLong()));
+                    list.add(new RecordListEntry(buf.readUtf(), buf.readLong(), buf.readLong(), buf.readVarInt()));
                 }
                 return new RecordList(list);
             }
@@ -65,6 +65,7 @@ public final class RecordListPackets {
                     buf.writeUtf(e.fileName());
                     buf.writeLong(e.size());
                     buf.writeLong(e.modified());
+                    buf.writeVarInt(e.events());
                 }
             }
         };

@@ -166,7 +166,10 @@ public class RecordingScreen extends Screen {
             if (bg != 0) g.fill(left + 6, y, left + 6 + listW, y + 19, bg);
             String size = f.size() < 1024 ? f.size() + "B" : (f.size() / 1024) + "KB";
             g.drawString(font, f.fileName(), left + 12, y + 6, i == selectedFile ? 0xFFFFFF : 0xC9D1D9);
-            g.drawString(font, size, left + 6 + listW - 40, y + 6, 0x6E7681);
+            // 右侧元信息：事件数 + 大小（事件数是回放价值的第一信号）
+            String events = f.events() + "ev";
+            String meta = events + " " + size;
+            g.drawString(font, meta, left + 6 + listW - 4 - font.width(meta), y + 6, 0x6E7681);
             y += 20;
         }
         if (files.isEmpty())

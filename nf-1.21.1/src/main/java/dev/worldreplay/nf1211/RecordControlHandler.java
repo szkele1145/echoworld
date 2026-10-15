@@ -67,7 +67,7 @@ public final class RecordControlHandler {
         return server.getServerDirectory().resolve("worldreplay").resolve("recordings");
     }
 
-    /** 扫描服务端 recordings 目录（.wrp，按修改时间倒序）。 */
+    /** 扫描服务端 recordings 目录（.wrp，按修改时间倒序；含事件数快速估算）。 */
     public static List<RecordListPackets.RecordListEntry> scanRecordings(MinecraftServer server) {
         List<RecordListPackets.RecordListEntry> entries = new ArrayList<>();
         Path dir = recordingsDir(server);
@@ -81,12 +81,38 @@ public final class RecordControlHandler {
                     entries.add(new RecordListPackets.RecordListEntry(
                             f.getFileName().toString(),
                             Files.size(f),
-                            Files.getLastModifiedTime(f).toMillis()));
+                            Files.getLastModifiedTime(f).toMillis(),
+                            countEvents(f)));
                 } catch (IOException ignored) {}
             }
         } catch (Exception ignored) {}
         entries.sort((a, b) -> Long.compare(b.modified(), a.modified()));
         return entries;
+    }
+
+    /** 快速统计 .wrp 内的事件数：逐条跳过字段（不解码内容，只读长度前缀）。 */
+    private static int countEvents(Path f) {
+        try (var in = new java.io.DataInputStream(new java.io.BufferedInputStream(Files.newInputStream(f)))) {
+            if (dev.worldreplay.core.event.EventDecoder.readHeader(in) <= 0) return 0;
+            int count = 0;
+            while (in.available() > 0) {
+                in.readLong();              // tick
+                skipUtf(in);                 // type
+                skipUtf(in);                 // playerId
+                skipUtf(in);                 // dimension
+                in.readDouble(); in.readDouble(); in.readDouble();   // xyz
+                skipUtf(in);                 // data
+                count++;
+            }
+            return count;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private static void skipUtf(java.io.DataInputStream in) throws java.io.IOException {
+        int len = in.readUnsignedShort();
+        in.skipBytes(len);
     }
 
     /** 把列表发给玩家（/worldreplay gui 分支与 C2S 请求共用）。 */

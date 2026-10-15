@@ -84,9 +84,9 @@ public final class ReplayVisualizer {
     public static void onRenderLevel(RenderLevelStageEvent event) {
         // 只在半透明方块后渲染一次（修：全 stage 重复渲染 5~8 次）
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
-        if (engine == null || !engine.isPlaying()) return;   // 播完不残留标记
+        if (engine == null || !engine.isPlaying()) return;   // 播完不残留标记（角标只在播/暂停时显示——暂停态由下方 HUD 分支处理）
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
+        if (mc.player == null || mc.gui == null) return;
 
         long currentTick = engine.getCurrentTick();
         List<Event> timeline = engine.timelineView();   // 有序时间线（引擎保证，不再用原始乱序列表）
@@ -140,6 +140,19 @@ public final class ReplayVisualizer {
         } finally {
             PoseStackAccessor.end();
         }
+
+        // HUD 角标：回放状态条（倍速 + 暂停态），画在屏幕左上（不与世界渲染互斥）
+        if (mc.gui != null) {
+            String state = isPaused() ? "[WorldReplay] ⏸ paused " + fmtSpeed() + " (P resume)"
+                    : "[WorldReplay] ▶ " + fmtSpeed() + "x";
+            var gg = new net.minecraft.client.gui.GuiGraphics(mc, mc.renderBuffers().bufferSource());
+            gg.drawString(font, state, 8, 8, 0xFFFFD700, true);
+        }
+    }
+
+    private static String fmtSpeed() {
+        double s = getSpeed();
+        return s < 10 ? String.format("%.1f", s) : String.format("%.0f", s);
     }
 
     /** 幽灵标签（回放语态）。 */
