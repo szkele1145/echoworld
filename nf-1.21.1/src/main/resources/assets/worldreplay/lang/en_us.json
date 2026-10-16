@@ -13,5 +13,10 @@
     "worldreplay.gui.noplayers": "(no players online)",
     "worldreplay.gui.rename": "Rename",
     "worldreplay.gui.renamehint": "Type a new name, Enter to confirm / ESC to cancel",
-    "worldreplay.gui.delhint": "Press Shift+DEL to delete the selected recording"
+    "worldreplay.gui.delhint": "Press Shift+DEL to delete the selected recording",
+    "worldreplay.rename.invalid": "[WorldReplay] Invalid new name (empty after sanitizing)",
+    "worldreplay.rename.exhausted": "[WorldReplay] Rename failed: too many same-named files (-1..-999 all taken)",
+    "worldreplay.rename.failed": "[WorldReplay] Rename failed: file is locked or not writable",
+    "worldreplay.delete.failed": "[WorldReplay] Delete failed: file is locked or read-only",
+    "worldreplay.replay.failed": "[WorldReplay] Replay failed: recording is empty or unreadable"
 }

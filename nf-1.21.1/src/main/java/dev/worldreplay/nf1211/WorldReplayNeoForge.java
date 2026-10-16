@@ -12,7 +12,7 @@ import org.slf4j.Logger;
 /**
  * WorldReplay NeoForge 1.21.1 主入口。
  *
- * <p>装载录制器（行为捕获→落盘）、/echoreplay 命令与服务端配置。
+ * <p>装载录制器（行为捕获→落盘）、/wr 命令与服务端配置。
  * 客户端 GUI（P 键暂停）在 {@link dev.worldreplay.nf1211.client.WorldReplayClient}（Dist.CLIENT 隔离）。</p>
  */
 @Mod(WorldReplayNeoForge.MOD_ID)
@@ -39,6 +39,6 @@ public class WorldReplayNeoForge {
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         WorldReplayCommands.register(event.getDispatcher());
-        LOGGER.info("[WorldReplay] /echoreplay registered");
+        LOGGER.info("[WorldReplay] /wr registered");
     }
 }

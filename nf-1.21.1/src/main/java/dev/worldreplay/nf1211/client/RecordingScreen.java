@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * WorldReplay 录制管理屏：仅由命令 {@code /echoreplay gui} 打开（v0.1.9 起无 O 键）。
+ * WorldReplay 录制管理屏：仅由命令 {@code /wr gui} 打开（v0.1.9 起无 O 键）。
  *
  * <p>左栏：录制文件列表（点击选中，Shift+DEL 删除，滚轮翻页）。
  * 右栏：录制设置——在线玩家多选（全选/清空）+ 开始/停止。</p>

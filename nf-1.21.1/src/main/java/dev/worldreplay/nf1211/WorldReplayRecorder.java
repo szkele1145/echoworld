@@ -18,16 +18,19 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * WorldReplay 行为捕获（NeoForge 1.21.1 平台层）�? * 把平台事件翻译为 core 统一 Event 格式，写�?RecordingSession�? *
- * <p>每个在线玩家一个录制会话（进服开始，退服停止并落盘）�? * 走原版方�?实体系统的事件——第三方 mod（MTR 等）的自定义方块自动被捕获�?/p>
+ * WorldReplay 行为捕获（NeoForge 1.21.1 平台层）。
+ * 把平台事件翻译为 core 统一 Event 格式，写入 {@link RecordingSession}。
  *
- * <p><b>v0.2：实现完整的录制生命周期�?/b></p>
+ * <p>每个在线玩家一个录制会话（进服开始，退服停止并落盘）。
+ * 走原版方块/实体系统的事件——第三方 mod（MTR 等）的自定义方块自动被捕获。</p>
+ *
+ * <p><b>v0.2：实现完整的录制生命周期。</b></p>
  */
 @EventBusSubscriber(modid = WorldReplayNeoForge.MOD_ID)
 public final class WorldReplayRecorder {
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    /** 玩家 UUID -> 录制会话（进服开始，退服停止）�?*/
+    /** 玩家 UUID -> 录制会话（进服开始，退服停止）。 */
     private static final Map<UUID, RecordingSession> SESSIONS = new ConcurrentHashMap<>();
 
     // ---- 生命周期 ----
@@ -49,23 +52,18 @@ public final class WorldReplayRecorder {
         if (session != null) {
             // 会话时长闭环：先 stopRecord 落定 endTick（durationTicks 精确化），再导出
             session.stopRecord(sp.serverLevel().getGameTime());
-            // 落盘：.worldreplay/recordings/<uuid>-<startTick>.wrp（core 二进制格式，magic 0xE7C0）
-            try {
-                byte[] data = session.export();
-                Path dir = sp.serverLevel().getServer().getServerDirectory()
-                        .resolve("worldreplay").resolve("recordings");
-                java.nio.file.Files.createDirectories(dir);
-                Path f = dir.resolve(id + "-" + session.startTick() + ".wrp");
-                java.nio.file.Files.write(f, data);
-                LOGGER.info("[WorldReplay] Recording saved {} ({} events, {} bytes)",
-                        f.getFileName(), session.eventCount(), data.length);
-            } catch (Exception e) {
-                LOGGER.error("[WorldReplay] Failed to save recording for {}", id, e);
+            // 落盘：worldreplay/recordings/<uuid>-<startTick>.wrp（core 二进制格式，magic 0xE7C0）
+            // 目录统一由 RecordControlHandler.recordingsDir 提供（此处曾自带一份字面量，
+            // 与 /wr 读取路径、清理任务各自为政，改一处就漂移）
+            Path f = save(session, id, RecordControlHandler.recordingsDir(sp.serverLevel().getServer()));
+            if (f != null) {
+                LOGGER.info("[WorldReplay] Recording saved {} ({} events)",
+                        f.getFileName(), session.eventCount());
             }
         }
     }
 
-    /** 获取某玩家的录制会话（null = 未在录制）�?*/
+    /** 获取某玩家的录制会话（null = 未在录制）。 */
     public static RecordingSession getSession(UUID playerId) {
         return SESSIONS.get(playerId);
     }
@@ -86,25 +84,34 @@ public final class WorldReplayRecorder {
         if (session == null) return;
         var sp = server.getPlayerList().getPlayer(id);
         String name = sp != null ? sp.getName().getString() : id.toString();
-        // 会话时长闭环（与 logout 路径一致）
-        session.stopRecord(server.overworld().getGameTime());
+        // 会话时长闭环（与 logout 路径一致：同一维度、同一 tick 源；
+        // 旧实现此行用 overworld().getGameTime()，与 logout 的 serverLevel() 不一致，
+        // 下界/末地录制会因两个维度 tick 计数不同而多算/少算时长）
+        session.stopRecord(sp != null ? sp.serverLevel().getGameTime() : server.overworld().getGameTime());
+        Path f = save(session, id, RecordControlHandler.recordingsDir(server));
+        if (f != null) {
+            LOGGER.info("[WorldReplay] Manual recording saved {} ({} events)", f.getFileName(), session.eventCount());
+        }
+    }
+
+    /**
+     * 导出会话并落盘，返回写入的文件路径；失败返回 {@code null}。
+     * 两条停止路径（logout / stopFor）共用，避免落盘逻辑再次分叉。
+     */
+    private static Path save(RecordingSession session, UUID id, Path dir) {
         try {
             byte[] data = session.export();
-            Path dir = server.getServerDirectory().resolve("worldreplay").resolve("recordings");
             java.nio.file.Files.createDirectories(dir);
             Path f = dir.resolve(id + "-" + session.startTick() + ".wrp");
             java.nio.file.Files.write(f, data);
-            LOGGER.info("[WorldReplay] Manual recording saved {} ({} events)", f.getFileName(), session.eventCount());
+            return f;
         } catch (Exception e) {
-            LOGGER.error("[WorldReplay] Failed to save manual recording for {}", name, e);
+            LOGGER.error("[WorldReplay] Failed to save recording for {}", id, e);
+            return null;
         }
     }
 
     // ---- 事件捕获 ----
-
-    private static void capture(ServerPlayer sp, String type, String data) {
-        captureAt(sp, type, data, sp.getX(), sp.getY(), sp.getZ());
-    }
 
     /** 带显式坐标的事件捕获（方块事件用方块位置，非玩家位置）。 */
     private static void captureAt(ServerPlayer sp, String type, String data, double x, double y, double z) {

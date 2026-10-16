@@ -18,7 +18,7 @@ import java.util.List;
  * <p>通道一览：
  * <ul>
  *   <li>S2C {@link RecordList} —— 服务端扫描 recordings 目录后下发的完整文件列表</li>
- *   <li>S2C {@link OpenRecordLibrary} —— /echoreplay gui 的开屏信号（v0.1.9，取代 O 键）</li>
+ *   <li>S2C {@link OpenRecordLibrary} —— /wr gui 的开屏信号（v0.1.9，取代 O 键）</li>
  *   <li>S2C {@link RecordingData} —— .wrp 文件数据分片（回放请求的响应）</li>
  *   <li>C2S {@link RequestRecordList} —— 请求文件列表（保留以兼容 0.1.8 及更早客户端的 O 键）</li>
  *   <li>C2S {@link RequestRecording} —— 客户端请求回放或删除某文件</li>
@@ -198,7 +198,7 @@ public final class RecordListPackets {
     /**
      * S2C：请客户端打开录制管理屏。
      *
-     * <p>v0.1.9 起录制库<b>只能</b>由 {@code /echoreplay gui} 打开：服务端先发本包
+     * <p>v0.1.9 起录制库<b>只能</b>由 {@code /wr gui} 打开：服务端先发本包
      * 再发 {@link RecordList}，客户端据此决定“开新屏”还是“仅刷新已开的屏”，
      * 不再由客户端按键触发。无字段，独立通道（老客户端收到未知 optional 通道直接忽略）。</p>
      */

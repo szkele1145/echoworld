@@ -36,7 +36,7 @@ public final class ClientPayloadHandlers {
     /**
      * 是否“本次列表下发需要开屏”（v0.1.9）。
      *
-     * <p>只有 {@link #handleOpenRecordLibrary} 会置位，即只有 {@code /echoreplay gui}
+     * <p>只有 {@link #handleOpenRecordLibrary} 会置位，即只有 {@code /wr gui}
      * 能打开录制库；删除/重命名后的列表刷新不带本标志，只更新已开的屏，
      * 绝不会凭空弹出界面（用户明确要求：不要 O 键自动开屏）。</p>
      */
@@ -46,7 +46,7 @@ public final class ClientPayloadHandlers {
     private static final Map<String, ByteArrayOutputStream> incoming = new HashMap<>();
 
     /**
-     * S2C OpenRecordLibrary：/echoreplay gui 的开屏信号。
+     * S2C OpenRecordLibrary：/wr gui 的开屏信号。
      *
      * <p>只置标志、不直接开屏——真正的界面构建发生在紧随其后的 {@link #handleRecordList}
      * 里（需要文件列表作为构造参数）。在网络线程写 volatile，保证先于列表包可见。</p>
@@ -68,7 +68,7 @@ public final class ClientPayloadHandlers {
             if (mc.screen instanceof RecordingScreen screen) {
                 screen.updateFiles(list);   // GUI 已开（如删除/重命名后刷新）
             } else if (open && mc.player != null) {
-                mc.setScreen(new RecordingScreen(list));   // 仅 /echoreplay gui 触发
+                mc.setScreen(new RecordingScreen(list));   // 仅 /wr gui 触发
             }
             // open=false 且未开屏：丢弃（例如别人执行命令时自己刚好收了列表）
         });

@@ -1,6 +1,8 @@
 package dev.worldreplay.nf1211;
 
+import com.mojang.logging.LogUtils;
 import dev.worldreplay.nf1211.client.ClientPayloadHandlers;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -29,6 +31,15 @@ import java.util.UUID;
  */
 @EventBusSubscriber(modid = WorldReplayNeoForge.MOD_ID)
 public final class RecordControlHandler {
+
+    private static final org.slf4j.Logger LOGGER = LogUtils.getLogger();
+
+    /**
+     * 仅大小写改名时的中转名（NTFS 上必须两步才真正改条目名）。
+     * 刻意不用 {@code .wrp} 结尾——万一中途崩溃残留，也不会被
+     * {@link #scanRecordings} 当成一条录制列进 GUI。
+     */
+    static final String WR_RENAME_TMP = ".wr-rename.tmp";
 
     @SubscribeEvent
     public static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
@@ -64,7 +75,7 @@ public final class RecordControlHandler {
                 (payload, ctx) -> ctx.enqueueWork(() -> {
                     if (ctx.player() instanceof ServerPlayer sp) handleRenameRequest(payload, sp);
                 }));
-        // S2C：/echoreplay gui 的开屏信号（v0.1.9，取代 O 键；必须先于 RecordList 到达）
+        // S2C：/wr gui 的开屏信号（v0.1.9，取代 O 键；必须先于 RecordList 到达）
         registrar.playToClient(RecordListPackets.OpenRecordLibrary.TYPE,
                 RecordListPackets.OpenRecordLibrary.CODEC,
                 (payload, ctx) -> ClientPayloadHandlers.handleOpenRecordLibrary(payload));
@@ -77,6 +88,11 @@ public final class RecordControlHandler {
         return server.getServerDirectory().resolve("worldreplay").resolve("recordings");
     }
 
+    /** 服务端录制目录（从服务器目录 Path 直接构造，供模组外/清理任务复用）。 */
+    public static Path recordingsDir(Path serverDir) {
+        return serverDir.resolve("worldreplay").resolve("recordings");
+    }
+
     /** 扫描服务端 recordings 目录（.wrp，按修改时间倒序；含事件数快速估算）。 */
     public static List<RecordListPackets.RecordListEntry> scanRecordings(MinecraftServer server) {
         List<RecordListPackets.RecordListEntry> entries = new ArrayList<>();
@@ -84,8 +100,10 @@ public final class RecordControlHandler {
         if (!Files.isDirectory(dir)) return entries;
         try (var s = Files.list(dir)) {
             for (Path f : (Iterable<Path>) s.filter(p -> {
+                // 后缀大小写不敏感：旧实现用 endsWith(".wrp")，手工改名成 .WRP 的录制
+                // 会从 GUI 列表里凭空消失（文件还在，但扫不到、也删不掉）
                 String n = p.getFileName().toString();
-                return n.endsWith(".wrp") && Files.isRegularFile(p);
+                return hasWrpSuffix(n) && Files.isRegularFile(p);
             })::iterator) {
                 try {
                     entries.add(new RecordListPackets.RecordListEntry(
@@ -98,6 +116,12 @@ public final class RecordControlHandler {
         } catch (Exception ignored) {}
         entries.sort((a, b) -> Long.compare(b.modified(), a.modified()));
         return entries;
+    }
+
+    /** 是否是 .wrp 录制文件（后缀比较不区分大小写）。 */
+    static boolean hasWrpSuffix(String name) {
+        return name != null && name.length() > 4
+                && name.regionMatches(true, name.length() - 4, ".wrp", 0, 4);
     }
 
     /** 快速统计 .wrp 内的事件数：逐条跳过字段（不解码内容，只读长度前缀）。 */
@@ -116,23 +140,29 @@ public final class RecordControlHandler {
             }
             return count;
         } catch (Exception e) {
+            // 损坏/半截文件：以前静默返回 0，GUI 显示"0 事件"却看不出原因
+            LOGGER.warn("[WorldReplay] Corrupt or truncated recording: {}", f.getFileName());
             return 0;
         }
     }
 
     private static void skipUtf(java.io.DataInputStream in) throws java.io.IOException {
         int len = in.readUnsignedShort();
-        in.skipBytes(len);
+        int skipped = in.skipBytes(len);
+        // DataInputStream.skipBytes 内部会循环到底，正常情况 skipped == len；
+        // 若字节流被截断则不足，此时直接报错交给上层当损坏处理，而不是让后续
+        // readLong/readDouble 读到错位数据后算出天文数字的事件数
+        if (skipped != len) throw new java.io.EOFException("truncated string field");
     }
 
-    /** 把列表发给玩家（/echoreplay gui 分支与 C2S 请求共用）。 */
+    /** 把列表发给玩家（/wr gui 分支与 C2S 请求共用）。 */
     public static void sendRecordList(ServerPlayer player) {
         PacketDistributor.sendToPlayer(player,
                 new RecordListPackets.RecordList(scanRecordings(player.server)));
     }
 
     /**
-     * /echoreplay gui：先发开屏信号，再发列表（v0.1.9）。
+     * /wr gui：先发开屏信号，再发列表（v0.1.9）。
      *
      * <p>顺序不可颠倒：客户端以 {@code OpenRecordLibrary} 置位“开新屏”，
      * 随后的 {@code RecordList} 才据此构建并显示界面。</p>
@@ -178,23 +208,44 @@ public final class RecordControlHandler {
         if (payload.action() == RecordListPackets.RequestRecording.ACTION_DELETE) {
             try {
                 Files.deleteIfExists(f);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                // 文件被占用 / 只读：以前静默吞掉，玩家点了删除却什么都没发生也没有解释
+                LOGGER.warn("[WorldReplay] Delete failed: {}", f.getFileName(), e);
+                notifyFailure(sender, "worldreplay.delete.failed");
+            }
             sendRecordList(sender);   // 删除后刷新
             return;
         }
-        // ACTION_REPLAY：读文件、按 MAX_CHUNK 分片顺序下发（TCP 保序）
+        // ACTION_REPLAY：读文件、分片下发给请求者
         try {
             byte[] data = Files.readAllBytes(f);
-            if (data.length == 0) return;
-            int chunkIndex = 0;
-            for (int off = 0; off < data.length; ) {
-                int len = Math.min(RecordListPackets.MAX_CHUNK, data.length - off);
-                boolean last = off + len >= data.length;
-                PacketDistributor.sendToPlayer(sender, new RecordListPackets.RecordingData(
-                        fileName, chunkIndex++, last, java.util.Arrays.copyOfRange(data, off, off + len)));
-                off += len;
+            if (data.length == 0) {
+                notifyFailure(sender, "worldreplay.replay.failed");
+                return;
             }
-        } catch (Exception ignored) {}
+            sendRecording(sender, fileName, data);
+        } catch (Exception e) {
+            LOGGER.warn("[WorldReplay] Replay read failed: {}", f.getFileName(), e);
+            notifyFailure(sender, "worldreplay.replay.failed");
+        }
+    }
+
+    /**
+     * 把录制字节按 {@link RecordListPackets#MAX_CHUNK} 分片顺序下发（TCP 保序），返回分片数。
+     *
+     * <p>GUI 的"回放"按钮与 {@code /wr <file>} 共用这一条通路，
+     * 保证两条入口在客户端落到同一个 {@code ReplayVisualizer.begin}。</p>
+     */
+    static int sendRecording(ServerPlayer target, String fileName, byte[] data) {
+        int chunkIndex = 0;
+        for (int off = 0; off < data.length; ) {
+            int len = Math.min(RecordListPackets.MAX_CHUNK, data.length - off);
+            boolean last = off + len >= data.length;
+            PacketDistributor.sendToPlayer(target, new RecordListPackets.RecordingData(
+                    fileName, chunkIndex++, last, java.util.Arrays.copyOfRange(data, off, off + len)));
+            off += len;
+        }
+        return chunkIndex;
     }
 
     /** 文件名安全校验：拒绝路径分隔符 / .. / 空名（目录穿越防护，列表与重命名共用）。 */
@@ -207,31 +258,81 @@ public final class RecordControlHandler {
     }
 
     /**
-     * 重命名录制文件（v0.1.9）。
+     * 重命名录制文件（v0.1.9，v0.2.0 修三处缺陷）。
      *
-     * <p>客户端传来的新名只作“显示名”处理：服务端统一清洗（去掉路径分隔符、
+     * <p>客户端传来的新名只作"显示名"处理：服务端统一清洗（去掉路径分隔符、
      * 控制字符与 Windows 保留字符、去空白、限长 96），强制补 {@code .wrp} 后缀，
-     * 已存在同名文件时追加 {@code -2}、{@code -3}… 递增，绝不覆盖既有录制。
-     * 任一环节失败都不抛异常给调用方——调用方随后总会重发列表，
-     * 客户端以服务端真实状态为准（失败即“名字没变”，不会出现幻影条目）。</p>
+     * 已存在同名文件时追加 {@code -2}、{@code -3}… 递增，绝不覆盖既有录制。</p>
+     *
+     * <p>v0.2.0 修复：
+     * <ol>
+     *   <li>大小写不敏感文件系统上，"仅改大小写"的改名曾被 {@code Files.exists}
+     *       误判为同名冲突，产出 {@code FOO-2.wrp}；</li>
+     *   <li>NTFS 上直接 {@code move} 到仅大小写不同的目标不会真正改名
+     *       （实测磁盘条目仍是原名），改为"临时名 + 目标名"两步移动；</li>
+     *   <li>序号用尽时旧实现把已占用的路径交给 {@code Files.move}，
+     *       抛出的异常被空 catch 吞掉——静默失败且无任何提示。</li>
+     * </ol></p>
      */
     private static void renameRecording(Path dir, Path src, String requested, ServerPlayer sender) {
         String cleaned = sanitizeDisplayName(requested);
-        if (cleaned.isEmpty()) return;                 // 全是非法字符：忽略
-        String target = cleaned + ".wrp";
-        if (target.equals(src.getFileName().toString())) return;   // 名字没变：免 IO
-        Path dst = dir.resolve(target);
-        if (!dst.normalize().getParent().equals(dir.normalize())) return;   // 双保险：不越界
-        try {
-            int n = 2;
-            while (Files.exists(dst) && n < 1000) {     // 同名不覆盖，自动加序号
-                dst = dir.resolve(cleaned + "-" + n + ".wrp");
-                n++;
-            }
-            Files.move(src, dst);                       // 同目录移动：原子性足够
-        } catch (Exception ignored) {
-            // 目标被占用/权限不足：静默失败，列表刷新后客户端看到原名
+        if (cleaned.isEmpty()) {
+            notifyFailure(sender, "worldreplay.rename.invalid");
+            return;
         }
+        Path dst = freeTarget(dir, src, cleaned);
+        if (dst == null) {
+            notifyFailure(sender, "worldreplay.rename.exhausted");
+            return;
+        }
+        if (dst.getFileName().toString().equals(src.getFileName().toString())) {
+            return;   // 名字与磁盘上的完全一致：免 IO
+        }
+        try {
+            if (dst.getFileName().toString().equalsIgnoreCase(src.getFileName().toString())) {
+                // 仅大小写不同：NTFS 直接 move 不会改变磁盘上的条目名（实测），
+                // 必须先经一个不冲突的临时名，再由临时名挪到目标名。
+                Path tmp = dir.resolve(WR_RENAME_TMP);
+                Files.deleteIfExists(tmp);
+                Files.move(src, tmp);
+                Files.move(tmp, dst);
+            } else {
+                Files.move(src, dst);   // 同目录移动：原子性足够
+            }
+        } catch (Exception e) {
+            LOGGER.warn("[WorldReplay] Rename failed: {} -> {}", src.getFileName(), dst.getFileName(), e);
+            notifyFailure(sender, "worldreplay.rename.failed");
+            try {
+                Files.deleteIfExists(dir.resolve(WR_RENAME_TMP));   // 清理可能残留的中间名
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * 求一个不冲突的目标路径；可用名字耗尽时返回 {@code null}（调用方据此上报，不再让异常被吞）。
+     *
+     * <p>关键差异：{@code Files.exists(dst)} 在大小写不敏感的文件系统上，
+     * 对"仅大小写不同的源文件自身"同样返回 true。旧实现因此把 {@code foo.wrp}
+     * 改名为 {@code FOO} 时误判冲突，产出 {@code FOO-2.wrp}。
+     * 这里用 {@link Files#isSameFile} 排除"目标即源文件自身"。</p>
+     */
+    private static Path freeTarget(Path dir, Path src, String cleaned) {
+        for (int n = 1; n < 1000; n++) {
+            Path dst = dir.resolve(n == 1 ? cleaned + ".wrp" : cleaned + "-" + n + ".wrp");
+            if (!dst.normalize().getParent().equals(dir.normalize())) return null;   // 双保险：不越界
+            if (!Files.exists(dst)) return dst;
+            try {
+                if (Files.isSameFile(src, dst)) return dst;   // 目标就是自己（仅大小写不同）
+            } catch (IOException ignored) {
+                // 无法判定同一性：保守视为冲突，继续尝试下一个序号
+            }
+        }
+        return null;   // 1..999 全部被占用
+    }
+
+    /** 重命名失败时给操作者一句明确反馈（旧实现是彻底静默）。 */
+    private static void notifyFailure(ServerPlayer sender, String translationKey) {
+        sender.sendSystemMessage(Component.translatable(translationKey));
     }
 
     /** 清洗客户端提交的显示名：去非法字符、折叠空白、限长（空串=无效）。 */
@@ -247,7 +348,12 @@ public final class RecordControlHandler {
         }
         String s = sb.toString().trim();
         while (s.endsWith(".")) s = s.substring(0, s.length() - 1);     // Windows 不允许尾点
-        if (s.endsWith(".wrp")) s = s.substring(0, s.length() - 4);     // 后缀由服务端补
+        // 后缀由服务端补：大小写不敏感地剥掉（旧实现用 endsWith(".wrp")，
+        // 于是 "Kept.WRP" 逃过剥离、落盘成 "Kept.WRP.wrp"）
+        if (s.length() >= 4 && s.regionMatches(true, s.length() - 4, ".wrp", 0, 4)) {
+            s = s.substring(0, s.length() - 4);
+            while (s.endsWith(".")) s = s.substring(0, s.length() - 1);   // 剥离后可能又露出尾点
+        }
         s = s.trim();
         if (s.length() > 96) s = s.substring(0, 96);
         return s;

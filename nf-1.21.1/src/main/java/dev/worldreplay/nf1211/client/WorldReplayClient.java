@@ -18,7 +18,7 @@ import org.lwjgl.glfw.GLFW;
  * <p>Dist.CLIENT 保证专用服务器不加载本类（KeyMapping 是客户端类）。</p>
  *
  * <p><b>v0.1.9</b>：原 O 键开录制库已<b>移除</b>。录制库只能由服务端命令
- * {@code /echoreplay gui} 打开（服务端发 OpenRecordLibrary + RecordList，
+ * {@code /wr gui} 打开（服务端发 OpenRecordLibrary + RecordList，
  * 客户端按信号开屏，见 {@link ClientPayloadHandlers}）。</p>
  */
 @EventBusSubscriber(modid = WorldReplayNeoForge.MOD_ID, value = Dist.CLIENT)
