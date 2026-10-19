@@ -35,3 +35,10 @@ tasks.register('selfTest', JavaExec) {
 tasks.named('check') {
     dependsOn tasks.named('selfTest')
 }
+
+// 本项目用零依赖 selfTest 而非 JUnit（mavenCentral 不可达，装不了 JUnit）。
+// Gradle 9 起 test 任务在"没发现任何测试"时默认报错，这里关掉——
+// 真正的回归保障是上面的 selfTest。
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
+}
