@@ -13,7 +13,7 @@ import java.util.List;
  * 录制库 GUI（客户端 Fabric 1.20.1）。
  *
  * <p>收到服务端 {@code record_list} 后显示录制文件列表；点击条目选中，
- * 支持回放/删除选中项，滚轮滚动列表。</p>
+ * 支持回放/删除/重命名选中项，滚轮滚动列表。</p>
  */
 public class RecordingScreen extends Screen {
 
@@ -21,6 +21,11 @@ public class RecordingScreen extends Screen {
     private static int scrollOffset = 0;
     /** 当前选中条目在完整列表中的索引，-1 表示未选中。 */
     private static int selectedIndex = -1;
+
+    /** 重命名输入状态（纯字符缓冲，不用 EditBox 避开 widget 渲染顺序冲突）。 */
+    private static String renameText = "";
+    private static boolean renaming = false;
+    private static final int RENAME_MAX = 64;
 
     /** 每页可见条目数。 */
     private static final int VISIBLE_ROWS = 12;
@@ -45,6 +50,15 @@ public class RecordingScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // 重命名模式：点击输入框外 = 提交
+        if (renaming) {
+            int boxX = width / 2 - 100, boxY = height - 80, boxW = 200, boxH = 16;
+            boolean inBox = mouseX >= boxX && mouseX <= boxX + boxW && mouseY >= boxY && mouseY <= boxY + boxH;
+            if (!inBox) {
+                submitRename();
+                return true;
+            }
+        }
         // 点击列表条目以选中（左键）
         if (button == 0 && mouseX >= 30 && mouseX <= width - 30) {
             int row = (int) ((mouseY - LIST_TOP) / ROW_HEIGHT);
@@ -82,8 +96,36 @@ public class RecordingScreen extends Screen {
             }
         }).dimensions(width / 2 + 60, height - 80, 90, 20).build());
 
+        // 重命名按钮：进入重命名输入模式
+        addDrawableChild(ButtonWidget.builder(Text.literal("重命名"), btn -> beginRename())
+                .dimensions(width / 2 - 150, height - 55, 90, 18).build());
+
         addDrawableChild(ButtonWidget.builder(ScreenTexts.BACK, btn -> client.setScreen(null))
                 .dimensions(width / 2 - 100, height - 28, 200, 20).build());
+    }
+
+    /** 进入重命名：无选中或已打开则忽略；预填当前名（去掉 .wrp 后缀）。 */
+    private void beginRename() {
+        if (renaming || selectedIndex < 0 || selectedIndex >= ENTRIES.size()) {
+            return;
+        }
+        String cur = ENTRIES.get(selectedIndex).fileName;
+        if (cur.endsWith(".wrp")) {
+            cur = cur.substring(0, cur.length() - 4);
+        }
+        renameText = cur;
+        renaming = true;
+    }
+
+    /** 提交重命名：空 = 取消；发 RequestRename 后退出输入模式。 */
+    private void submitRename() {
+        renaming = false;
+        String target = renameText.trim();
+        renameText = "";
+        if (target.isEmpty() || selectedIndex < 0 || selectedIndex >= ENTRIES.size()) {
+            return;
+        }
+        ClientPayloadHandlers.requestRename(client, ENTRIES.get(selectedIndex).fileName, target);
     }
 
     @Override
@@ -104,13 +146,62 @@ public class RecordingScreen extends Screen {
             context.drawCenteredTextWithShadow(textRenderer,
                     Text.literal("无录制文件").formatted(Formatting.YELLOW), width / 2, height / 2, 0xFFFF00);
         }
-        // 底部状态栏：当前选中文件名
-        if (selectedIndex >= 0 && selectedIndex < ENTRIES.size()) {
+        if (renaming) {
+            // 重命名输入框：边框 + 文本 + 光标；提示行在上方
+            int boxX = width / 2 - 100, boxY = height - 80;
+            context.drawTextWithShadow(textRenderer,
+                    Text.literal("新名字（回车提交 / 点框外提交 / ESC 取消）").formatted(Formatting.GRAY),
+                    boxX, boxY - 12, 0x8B949E);
+            context.fill(boxX, boxY, boxX + 200, boxY + 16, 0x80000000);
+            context.drawBorder(boxX, boxY, 200, 16, 0xFFFFFFFF);
+            String shown = renameText;
+            if (System.currentTimeMillis() / 500 % 2 == 0) {
+                shown += "_";
+            }
+            context.drawTextWithShadow(textRenderer, Text.literal(shown), boxX + 4, boxY + 4, 0xFFFFFF);
+        } else if (selectedIndex >= 0 && selectedIndex < ENTRIES.size()) {
+            // 底部状态栏：当前选中文件名
             context.drawCenteredTextWithShadow(textRenderer,
                     Text.literal("已选: " + ENTRIES.get(selectedIndex).fileName).formatted(Formatting.AQUA),
                     width / 2, height - 55, 0x55FFFF);
         }
         super.render(context, mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean charTyped(char c, int modifiers) {
+        if (renaming) {
+            // 屏蔽 Windows/Linux 非法文件名字符
+            if ("/\\:*?\"<>|".indexOf(c) < 0 && renameText.length() < RENAME_MAX) {
+                renameText += c;
+            }
+            return true;
+        }
+        return super.charTyped(c, modifiers);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (renaming) {
+            // ESC 取消；回车提交；退格删除
+            if (keyCode == 256) {           // ESC
+                renaming = false;
+                renameText = "";
+                return true;
+            }
+            if (keyCode == 257 || keyCode == 335) {  // Enter / 小键盘 Enter
+                submitRename();
+                return true;
+            }
+            if (keyCode == 259) {           // Backspace
+                if (!renameText.isEmpty()) {
+                    renameText = renameText.substring(0, renameText.length() - 1);
+                }
+                return true;
+            }
+            return true;    // 重命名模式下屏蔽其它按键（防触发方块交互）
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
