@@ -23,3 +23,15 @@ tasks.withType(JavaCompile).configureEach {
 javadoc {
     options.encoding = 'UTF-8'
 }
+
+// 零依赖自检（无 JUnit：mavenCentral 不可达）—— build 时顺带跑，失败即构建失败
+tasks.register('selfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs the zero-dependency core regression self-test.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.worldreplay.core.event.CoreSelfTest'
+}
+tasks.named('check') {
+    dependsOn tasks.named('selfTest')
+}
