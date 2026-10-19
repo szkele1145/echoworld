@@ -44,9 +44,9 @@ public class ReplayEngine {
         tickAccum = 0.0;
     }
 
-    /** 开始/恢复回放。 */
+    /** 开始/恢复回放（空时间线时不进入 playing 状态，避免 tick() 永远空转）。 */
     public void play() {
-        if (cursor < timeline.size()) {
+        if (!timeline.isEmpty() && cursor < timeline.size()) {
             playing = true;
         }
     }
@@ -89,11 +89,15 @@ public class ReplayEngine {
         return advanceTo(currentTick);
     }
 
-    /** 跳转到指定 tick：游标二分定位，重放区间的最后一条事件成为 currentEvent。 */
+    /** 跳转到指定 tick：游标二分定位，重放区间的最后一条事件成为 currentEvent。
+     *
+     * <p>顺带清零 tickAccum：慢速累积状态绑定旧位置，跳转后无意义，</p>
+     */
     public void seek(long tick) {
         currentTick = Math.max(0, tick);
         cursor = findFirstIndexAtOrAfter(currentTick);
         currentEvent = cursor > 0 ? timeline.get(cursor - 1) : null;
+        tickAccum = 0.0;
     }
 
     /** 推进到目标 tick，重放 (上一 currentTick, target] 区间内的事件。 */

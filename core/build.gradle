@@ -13,9 +13,11 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
 }
 
+// 共享 core 同时供给 NeoForge 1.21.1（Java 21）与 Fabric 1.19.4/1.20.1（Java 17）。
+// 用 JDK 21 编译但产出 17 字节码，两边都能加载。
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 21
+    options.release = 17
 }
 
 javadoc {

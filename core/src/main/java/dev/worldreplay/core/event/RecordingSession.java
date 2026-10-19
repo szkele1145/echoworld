@@ -60,12 +60,12 @@ public class RecordingSession {
     /** 会话时长（tick）；未停止时以最后一条事件的 tick 近似（O(1)：事件严格非降序）。 */
     public long durationTicks() {
         if (endTick >= 0) {
-            return endTick - startTick;
+            return Math.max(0, endTick - startTick);
         }
         if (events.isEmpty()) {
             return 0;
         }
-        return events.get(events.size() - 1).tick() - startTick;
+        return Math.max(0, events.get(events.size() - 1).tick() - startTick);
     }
 
     /** 会话起始 tick。 */
@@ -86,6 +86,9 @@ public class RecordingSession {
     /**
      * 导出为完整二进制：header + 逐条事件体。
      * 读取方用 {@link EventDecoder#readHeader} + 循环 {@link EventDecoder#readFrom} 消费。
+     *
+     * <p>未调用 {@link #stopRecord(long)} 时仍可导出已捕获的事件，但 {@code endTick} 为 -1，
+     * 下游消费者应自行判断（durationTicks() 已对未停止状态做近似处理）。</p>
      */
     public byte[] export() throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream(64 + events.size() * 96);

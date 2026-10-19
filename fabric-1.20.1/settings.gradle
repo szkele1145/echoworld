@@ -1,0 +1,36 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = uri('https://maven.fabricmc.net/')
+        }
+        // Maven Central / Gradle Plugin Portal 直连不通，用阿里云镜像
+        maven {
+            name = 'AliyunCentral'
+            url = uri('https://maven.aliyun.com/repository/central')
+        }
+        maven {
+            name = 'AliyunPlugins'
+            url = uri('https://maven.aliyun.com/repository/gradle-plugin')
+        }
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        maven {
+            name = 'AliyunCentral'
+            url = uri('https://maven.aliyun.com/repository/central')
+        }
+        maven {
+            name = 'Fabric'
+            url = uri('https://maven.fabricmc.net/')
+        }
+    }
+}
+
+rootProject.name = 'echoworld-fabric-1.20.1'
+
+// 单独构建本平台时，复用仓库根的 core 模块（Gradle 9 要求被 include 的目录必须存在）
+include 'core'
+project(':core').projectDir = file('../core')
