@@ -49,6 +49,9 @@ public final class WorldReplayNetwork {
                         players.add(buf.readUuid());
                     }
                     server.execute(() -> {
+                        // OP 限定：录制控制能影响**任意玩家**（开始/停止别人的录制），
+                        // 普通玩家不应有权限。与 NeoForge 侧保持一致。
+                        if (!player.hasPermissionLevel(2)) return;
                         if (start) {
                             for (UUID id : players) {
                                 WorldReplayRecorder.startFor(server, id);
@@ -63,7 +66,11 @@ public final class WorldReplayNetwork {
 
         ServerPlayNetworking.registerGlobalReceiver(CHANNEL_REQUEST_RECORD_LIST,
                 (server, player, handler, buf, responseSender) -> {
-                    server.execute(() -> RecordControlHandler.openRecordLibrary(player));
+                    // OP 限定：列表包含**全部**录制文件（所有玩家的行为记录）
+                    server.execute(() -> {
+                        if (!player.hasPermissionLevel(2)) return;
+                        RecordControlHandler.openRecordLibrary(player);
+                    });
                 });
 
         ServerPlayNetworking.registerGlobalReceiver(CHANNEL_REQUEST_RECORDING,
@@ -71,6 +78,8 @@ public final class WorldReplayNetwork {
                     String fileName = buf.readString(32767);
                     int action = buf.readVarInt();
                     server.execute(() -> {
+                        // OP 限定：回放=下载文件数据，删除=删文件——两种都必须是管理员操作
+                        if (!player.hasPermissionLevel(2)) return;
                         // 防目录穿越：包可以手工构造，不能只靠客户端。
                         // 旧实现直接 dir.resolve(fileName)——"../../../../secret"
                         // 会读出 recordings 目录之外的文件并回传给客户端。
@@ -105,6 +114,8 @@ public final class WorldReplayNetwork {
                     String oldName = buf.readString(32767);
                     String newName = buf.readString(32767);
                     server.execute(() -> {
+                        // OP 限定：重命名会动别人的录制文件
+                        if (!player.hasPermissionLevel(2)) return;
                         if (!WorldReplayConfig.RENAME_ENABLED) {
                             player.sendMessage(net.minecraft.text.Text.literal(
                                     "[WorldReplay] 重命名功能已禁用"), false);

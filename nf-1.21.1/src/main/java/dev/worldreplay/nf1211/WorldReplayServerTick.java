@@ -26,7 +26,9 @@ public final class WorldReplayServerTick {
 
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
-        int days = WorldReplayConfig.AUTO_CLEANUP_DAYS.get();
+        // 用安全访问器：ModConfigSpec.get() 在配置未加载时抛 IllegalStateException，
+        // 而这里是每 tick 都会走的路径——一个配置读取异常会把整个 tick 打断。
+        int days = WorldReplayConfig.autoCleanupDays();
         if (days <= 0) return;                          // 配置为 0：禁用自动清理
         if (++ticksSinceCleanup < CLEANUP_INTERVAL_TICKS) return;
         ticksSinceCleanup = 0;

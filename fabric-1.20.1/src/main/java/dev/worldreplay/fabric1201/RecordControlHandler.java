@@ -72,6 +72,8 @@ public final class RecordControlHandler {
 
     /** 扫描 recordings 目录并把文件列表推给玩家（附 OpenRecordLibrary 信号）。 */
     public static void openRecordLibrary(ServerPlayerEntity player) {
+        // 纵深防御：列表包含所有玩家的行为记录，只发给 OP
+        if (!player.hasPermissionLevel(2)) return;
         List<RecordListPackets.RecordListEntry> entries = new ArrayList<>();
         Path dir = recordingsDir();
         if (Files.isDirectory(dir)) {
@@ -99,6 +101,9 @@ public final class RecordControlHandler {
 
     /** 删除录制文件（服务端执行，返回成功与否给客户端）。 */
     public static void deleteRecording(ServerPlayerEntity player, String fileName) {
+        // 纵深防御：网络层已校验 OP，这里再挡一次——
+        // 这两个方法是 public static，可能被别的调用路径直接调到。
+        if (!player.hasPermissionLevel(2)) return;
         if (!isSafeFileName(fileName)) {
             notifyFailure(player, "非法文件名");
             return;
@@ -119,6 +124,8 @@ public final class RecordControlHandler {
 
     /** 重命名录制文件（受 WorldReplayConfig.RENAME_ENABLED 开关控制）。 */
     public static void renameRecording(ServerPlayerEntity player, String oldName, String newName) {
+        // 纵深防御：网络层已校验 OP，这里再挡一次
+        if (!player.hasPermissionLevel(2)) return;
         if (!WorldReplayConfig.RENAME_ENABLED) {
             notifyFailure(player, "重命名功能已禁用");
             return;

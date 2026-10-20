@@ -17,6 +17,7 @@
     "worldreplay.rename.invalid": "[WorldReplay] 新名字无效（清洗后为空）",
     "worldreplay.rename.exhausted": "[WorldReplay] 重命名失败：同名文件过多（-1…-999 都已占用）",
     "worldreplay.rename.failed": "[WorldReplay] 重命名失败：文件被占用或无写入权限",
+    "worldreplay.rename.disabled": "[WorldReplay] 重命名功能已禁用（配置项 renameEnabled）",
     "worldreplay.delete.failed": "[WorldReplay] 删除失败：文件被占用或只读",
     "worldreplay.replay.failed": "[WorldReplay] 回放失败：录制文件读取失败或为空"
 }

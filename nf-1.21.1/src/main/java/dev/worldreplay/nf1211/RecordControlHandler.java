@@ -180,6 +180,11 @@ public final class RecordControlHandler {
 
     /** C2S RequestRename：改名后无条件重发列表（v0.1.9，独立通道）。 */
     private static void handleRenameRequest(RecordListPackets.RequestRename payload, ServerPlayer sender) {
+        // 配置开关：服主可以整体禁用重命名（与 Fabric 侧 renameEnabled 对齐）
+        if (!WorldReplayConfig.renameEnabled()) {
+            notifyFailure(sender, "worldreplay.rename.disabled");
+            return;
+        }
         if (!sender.hasPermissions(2)) return;   // OP 限定，与删除/回放一致
         String fileName = payload.fileName();
         String newName = payload.newName();

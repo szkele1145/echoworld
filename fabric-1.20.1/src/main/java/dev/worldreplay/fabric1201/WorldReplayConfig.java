@@ -14,6 +14,8 @@ import java.util.List;
  */
 public final class WorldReplayConfig {
 
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(WorldReplayConfig.class);
+
     /** 自动清理录制文件的天数（0 表示禁用，不自动删除）。 */
     public static int AUTO_CLEANUP_DAYS = 30;
 
@@ -34,27 +36,37 @@ public final class WorldReplayConfig {
                 List<String> lines = java.nio.file.Files.readAllLines(f);
                 for (String line : lines) {
                     String t = line.trim();
-                    if (t.startsWith("autoCleanupDays")) {
-                        String[] kv = t.split("=", 2);
-                        if (kv.length == 2) {
-                            int v = Integer.parseInt(kv[1].trim());
-                            if (v >= 0 && v <= 365) {
-                                AUTO_CLEANUP_DAYS = v;
+                    if (t.isEmpty() || t.startsWith("#")) continue;   // 注释与空行
+                    // 每行独立解析：一行写坏（旧实现会因 parseInt 抛异常
+                    // 中断整个循环，**后面的配置项根本没被读到**）
+                    // 不影响其它项。
+                    try {
+                        if (t.startsWith("autoCleanupDays")) {
+                            String[] kv = t.split("=", 2);
+                            if (kv.length == 2) {
+                                int v = Integer.parseInt(kv[1].trim());
+                                if (v >= 0 && v <= 365) {
+                                    AUTO_CLEANUP_DAYS = v;
+                                } else {
+                                    LOGGER.warn("[WorldReplay] autoCleanupDays={} 超出范围 0-365，已忽略", v);
+                                }
+                            }
+                        } else if (t.startsWith("renameEnabled")) {
+                            String[] kv = t.split("=", 2);
+                            if (kv.length == 2) {
+                                RENAME_ENABLED = Boolean.parseBoolean(kv[1].trim());
                             }
                         }
-                    } else if (t.startsWith("renameEnabled")) {
-                        String[] kv = t.split("=", 2);
-                        if (kv.length == 2) {
-                            RENAME_ENABLED = Boolean.parseBoolean(kv[1].trim());
-                        }
+                    } catch (NumberFormatException e) {
+                        LOGGER.warn("[WorldReplay] 配置行无法解析，已忽略: {}", t);
                     }
                 }
             } else {
                 save();
             }
         } catch (Exception e) {
-            // 读取失败：保留默认值 30
-            AUTO_CLEANUP_DAYS = 30;
+            // 整体读取失败：保留默认值，不影响游戏运行
+            LOGGER.warn("[WorldReplay] 配置读取失败，使用默认配置", e);
         }
     }
 
@@ -67,6 +79,8 @@ public final class WorldReplayConfig {
                 + "# 自动清理录制文件的天数（0 表示禁用，不自动删除，范围 0-365）\n"
                 + "renameEnabled=" + RENAME_ENABLED + "\n"
                 + "# 是否允许客户端发起录制重命名（true/false）\n";
-        java.nio.file.Files.writeString(f, content);
+        // 显式 UTF-8：默认字符集在中文 Windows 上是 GBK，
+        // 写出的中文注释用别的编辑器打开会乱码（解析不受影响，只是难看）
+        java.nio.file.Files.writeString(f, content, java.nio.charset.StandardCharsets.UTF_8);
     }
 }
