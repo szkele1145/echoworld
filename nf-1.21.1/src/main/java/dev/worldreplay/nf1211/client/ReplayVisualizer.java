@@ -121,7 +121,7 @@ public final class ReplayVisualizer {
                 float cr = ((color >> 16) & 0xFF) / 255f;
                 float cg = ((color >> 8) & 0xFF) / 255f;
                 float cb = (color & 0xFF) / 255f;
-                var buf = buffers.getBuffer(RenderType.debugLineStrip(2.0f));
+                var buf = buffers.getBuffer(LINE_RENDER_TYPE);
                 drawBox(buf, mat, e.x(), e.y(), e.z(), cr, cg, cb, alpha);
 
                 String label = ghostLabel(e);
@@ -185,23 +185,94 @@ public final class ReplayVisualizer {
         return i >= 0 && i < data.length() - 1 ? data.substring(i + 1) : data;
     }
 
+    /**
+     * 事件线框的粗细（世界单位）。
+     *
+     * <p>不用 {@code RenderType.debugLineStrip(w)}：那走的是 {@code glLineWidth}，
+     * 现代 core profile 驱动把它钳到 1px，线框在世界里几乎看不见。
+     * 改成自己挤出四边形（按屏幕空间偏移）才能真正画出粗线。</p>
+     */
+    private static final float LINE_HALF_WIDTH = 0.035f;
+
+    /** 线框用的 RenderType（三角形几何，必须与浮字用的 buffer 分桶）。 */
+    private static final RenderType LINE_RENDER_TYPE = RenderType.create(
+            "worldreplay_ghost_lines",
+            com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR,
+            com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS,
+            1536, false, true,
+            RenderType.CompositeState.builder()
+                    .setShaderState(RenderType.POSITION_COLOR_SHADER)
+                    .setTransparencyState(net.minecraft.client.renderer.RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                    .setCullState(net.minecraft.client.renderer.RenderStateShard.NO_CULL)
+                    .setWriteMaskState(net.minecraft.client.renderer.RenderStateShard.COLOR_WRITE)
+                    .createCompositeState(false));
+
+    /** 事件标记的线框（真实宽度四边形）。 */
     private static void drawBox(com.mojang.blaze3d.vertex.VertexConsumer buf, Matrix4f mat,
                                 double x, double y, double z,
                                 float r, float g, float b, float a) {
         double x0 = x, x1 = x + 1, y0 = y, y1 = y + 1, z0 = z, z1 = z + 1;
-        edge(buf, mat, x0,y0,z0, x1,y0,z0, r,g,b,a); edge(buf, mat, x1,y0,z0, x1,y0,z1, r,g,b,a);
-        edge(buf, mat, x1,y0,z1, x0,y0,z1, r,g,b,a); edge(buf, mat, x0,y0,z1, x0,y0,z0, r,g,b,a);
-        edge(buf, mat, x0,y1,z0, x1,y1,z0, r,g,b,a); edge(buf, mat, x1,y1,z0, x1,y1,z1, r,g,b,a);
-        edge(buf, mat, x1,y1,z1, x0,y1,z1, r,g,b,a); edge(buf, mat, x0,y1,z1, x0,y1,z0, r,g,b,a);
-        edge(buf, mat, x0,y0,z0, x0,y1,z0, r,g,b,a); edge(buf, mat, x1,y0,z0, x1,y1,z0, r,g,b,a);
-        edge(buf, mat, x1,y0,z1, x1,y1,z1, r,g,b,a); edge(buf, mat, x0,y0,z1, x0,y1,z1, r,g,b,a);
+        // 12 条棱：4 底 + 4 顶 + 4 竖
+        seg(buf, mat, x0,y0,z0, x1,y0,z0, r,g,b,a);
+        seg(buf, mat, x1,y0,z0, x1,y0,z1, r,g,b,a);
+        seg(buf, mat, x1,y0,z1, x0,y0,z1, r,g,b,a);
+        seg(buf, mat, x0,y0,z1, x0,y0,z0, r,g,b,a);
+        seg(buf, mat, x0,y1,z0, x1,y1,z0, r,g,b,a);
+        seg(buf, mat, x1,y1,z0, x1,y1,z1, r,g,b,a);
+        seg(buf, mat, x1,y1,z1, x0,y1,z1, r,g,b,a);
+        seg(buf, mat, x0,y1,z1, x0,y1,z0, r,g,b,a);
+        seg(buf, mat, x0,y0,z0, x0,y1,z0, r,g,b,a);
+        seg(buf, mat, x1,y0,z0, x1,y1,z0, r,g,b,a);
+        seg(buf, mat, x1,y0,z1, x1,y1,z1, r,g,b,a);
+        seg(buf, mat, x0,y0,z1, x0,y1,z1, r,g,b,a);
     }
 
-    private static void edge(com.mojang.blaze3d.vertex.VertexConsumer buf, Matrix4f mat,
-                             double x0, double y0, double z0, double x1, double y1, double z1,
-                             float r, float g, float b, float a) {
-        buf.addVertex(mat, (float) x0, (float) y0, (float) z0).setColor(r, g, b, a);
-        buf.addVertex(mat, (float) x1, (float) y1, (float) z1).setColor(r, g, b, a);
+    /**
+     * 画一条有真实宽度的线段（两个三角形）。
+     *
+     * <p>偏移方向取线段方向的法平面——对水平线用 (0,1,0)×dir，
+     * 对竖直线用 (1,0,0)×dir，这样从任何角度看都有厚度。</p>
+     */
+    private static void seg(com.mojang.blaze3d.vertex.VertexConsumer buf, Matrix4f mat,
+                            double x0, double y0, double z0, double x1, double y1, double z1,
+                            float r, float g, float b, float a) {
+        double dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+        double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (len < 1e-9) return;
+        // 找一个与方向不平行的参考向量做叉乘，得到法平面偏移方向
+        double ux, uy, uz;
+        if (Math.abs(dy) > 0.9 * len) {
+            ux = 1; uy = 0; uz = 0;      // 竖直线：用 X 轴
+        } else {
+            ux = 0; uy = 1; uz = 0;      // 水平线：用 Y 轴
+        }
+        // n = dir × u，归一化
+        double nx = dy * uz - dz * uy;
+        double ny = dz * ux - dx * uz;
+        double nz = dx * uy - dy * ux;
+        double nl = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        if (nl < 1e-9) return;
+        nx = nx / nl * LINE_HALF_WIDTH;
+        ny = ny / nl * LINE_HALF_WIDTH;
+        nz = nz / nl * LINE_HALF_WIDTH;
+
+        // 四个顶点：p0+n, p1+n, p1-n, p0-n
+        double ax = x0 + nx, ay = y0 + ny, az = z0 + nz;
+        double bx = x1 + nx, by = y1 + ny, bz = z1 + nz;
+        double cx = x1 - nx, cy = y1 - ny, cz = z1 - nz;
+        double dx2 = x0 - nx, dy2 = y0 - ny, dz2 = z0 - nz;
+
+        vtx(buf, mat, ax, ay, az, r, g, b, a);
+        vtx(buf, mat, bx, by, bz, r, g, b, a);
+        vtx(buf, mat, cx, cy, cz, r, g, b, a);
+        vtx(buf, mat, ax, ay, az, r, g, b, a);
+        vtx(buf, mat, cx, cy, cz, r, g, b, a);
+        vtx(buf, mat, dx2, dy2, dz2, r, g, b, a);
+    }
+
+    private static void vtx(com.mojang.blaze3d.vertex.VertexConsumer buf, Matrix4f mat,
+                            double x, double y, double z, float r, float g, float b, float a) {
+        buf.addVertex(mat, (float) x, (float) y, (float) z).setColor(r, g, b, a);
     }
 
     private ReplayVisualizer() {}

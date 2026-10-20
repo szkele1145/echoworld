@@ -25,6 +25,8 @@ public final class CoreSelfTest {
         replaySpeedClamp();
         replayEmptyTimeline();
         replaySlowSpeedAccumulator();
+        replayRestartsAfterFinishing();
+        replaySeekIsClampedToTimeline();
         sessionAppendAfterStop();
         sessionExportBeforeStop();
         codecRoundTrip();
@@ -92,7 +94,46 @@ public final class CoreSelfTest {
         check("空时间线tick返回0", r.tick() == 0);
         check("空时间线endTick=0", r.endTick() == 0);
         r.seek(50);
-        check("空时间线seek安全", r.getCurrentTick() == 50);
+        // 空时间线没有时间线范围，seek 被钳到 0（不崩即可；
+        // 具体取值无意义，钳到 0 与"空=无内容"语义一致）
+        check("空时间线seek安全", r.getCurrentTick() == 0, "tick=" + r.getCurrentTick());
+    }
+
+    /**
+     * 播到末尾后再按"继续"：必须能从头重播。
+     *
+     * <p>修复前 advanceTo 播到末尾会置 playing=false，此时游标已在末尾，
+     * play() 的 {@code cursor < size} 判定不成立 → 静默无反应，
+     * 用户只能先 Stop 再 Play，绕一圈才能重看一遍。</p>
+     */
+    static void replayRestartsAfterFinishing() {
+        ReplayEngine r = new ReplayEngine(events(0, 10, 20));
+        r.play();
+        for (int i = 0; i < 40; i++) r.tick();   // 足够播完全部
+        check("播完后自动停止", !r.isPlaying());
+        r.play();                                  // 用户按"继续"
+        check("播完后play能重播", r.isPlaying());
+        check("重播时游标归零", r.getCurrentTick() == 0);
+        int n = r.tick();
+        check("重播从头开始", n >= 1 && r.getCurrentEvent() != null
+                && r.getCurrentEvent().tick() == 0, "replayed=" + n);
+    }
+
+    /**
+     * seek 越界必须钳到时间线范围内。
+     *
+     * <p>修复前 currentTick = max(0, tick) 不看上限，seek 到末尾之后
+     * 时钟停在一个不属于任何事件的时间点上——进度条算出的百分比
+     * 与实际重放位置对不上。</p>
+     */
+    static void replaySeekIsClampedToTimeline() {
+        ReplayEngine r = new ReplayEngine(events(100, 200, 300));
+        r.seek(9999);
+        check("seek越界被钳到末尾", r.getCurrentTick() == 300, "tick=" + r.getCurrentTick());
+        r.seek(-50);
+        check("seek负值被钳到起点", r.getCurrentTick() == 100, "tick=" + r.getCurrentTick());
+        r.seek(150);
+        check("seek中段生效", r.getCurrentTick() == 150, "tick=" + r.getCurrentTick());
     }
 
     /** 0.25x：每 4 tick 才前进 1；0.5x：每 2 tick 前进 1。 */

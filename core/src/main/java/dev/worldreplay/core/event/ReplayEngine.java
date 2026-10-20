@@ -44,11 +44,26 @@ public class ReplayEngine {
         tickAccum = 0.0;
     }
 
-    /** 开始/恢复回放（空时间线时不进入 playing 状态，避免 tick() 永远空转）。 */
+    /**
+     * 开始/恢复回放（空时间线时不进入 playing 状态，避免 tick() 永远空转）。
+     *
+     * <p><b>已播完时从头重播</b>：播放到末尾会自动停止（playing=false），
+     * 此时游标已在末尾，若直接按"继续"会因 {@code cursor < size} 不成立
+     * 而<b>静默无反应</b>——用户只能先 Stop 再 Play，绕路。
+     * 现在自动把游标与时钟归零，等价于"再播一遍"。</p>
+     */
     public void play() {
-        if (!timeline.isEmpty() && cursor < timeline.size()) {
-            playing = true;
+        if (timeline.isEmpty()) {
+            return;
         }
+        if (cursor >= timeline.size()) {
+            // 已经播到（或 seek 到）末尾：归零重来
+            cursor = 0;
+            currentTick = timeline.get(0).tick();
+            tickAccum = 0.0;
+            currentEvent = null;
+        }
+        playing = true;
     }
 
     /** 暂停（保留进度）。 */
@@ -91,10 +106,16 @@ public class ReplayEngine {
 
     /** 跳转到指定 tick：游标二分定位，重放区间的最后一条事件成为 currentEvent。
      *
+     * <p>target 钳制到时间线范围 [首事件 tick, 末事件 tick]：
+     * 不钳的话 seek 到末尾之后，currentTick 会停在一个不属于任何事件
+     * 的时间点上——UI 上的时间轴位置与实际重放位置对不上。</p>
+     *
      * <p>顺带清零 tickAccum：慢速累积状态绑定旧位置，跳转后无意义，</p>
      */
     public void seek(long tick) {
-        currentTick = Math.max(0, tick);
+        long lo = timeline.isEmpty() ? 0 : timeline.get(0).tick();
+        long hi = timeline.isEmpty() ? 0 : timeline.get(timeline.size() - 1).tick();
+        currentTick = Math.max(lo, Math.min(tick, hi));
         cursor = findFirstIndexAtOrAfter(currentTick);
         currentEvent = cursor > 0 ? timeline.get(cursor - 1) : null;
         tickAccum = 0.0;
