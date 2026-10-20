@@ -11,7 +11,7 @@
     "main": ["dev.worldreplay.fabric1194.WorldReplayFabric"],
     "client": ["dev.worldreplay.fabric1194.client.WorldReplayFabricClient"]
   },
-  "mixins": [],
+  "mixins": ["worldreplay.mixins.json"],
   "depends": {
     "fabricloader": ">=0.14.0",
     "minecraft": "1.19.4",

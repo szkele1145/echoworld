@@ -62,7 +62,7 @@ public final class WorldReplayRecorder {
             }
         });
 
-        // 方块放置：无对应 Fabric 事件，放置行为通过右键事件近似捕获（见下）
+        // 方块放置：1.20.1 无对应 Fabric 事件，放置行为通过右键事件近似捕获（见下）
 
         // 右键方块（主手一次）
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
@@ -157,6 +157,29 @@ public final class WorldReplayRecorder {
                 sp.getWorld().getRegistryKey().getValue().toString(),
                 x, y, z,
                 data);
+        session.append(e);
+    }
+
+    /**
+     * 捕获方块放置（由 {@code BlockItemPlaceMixin} 调用）。
+     *
+     * <p>Fabric API 没有放置事件，只能用 Mixin 钩 {@code BlockItem.place}
+     * 的返回值——只有真的放下去（返回 true）才记录，因此不会出现
+     * "对着箱子右键被记成放置"这类误报。</p>
+     *
+     * <p>public 是因为 Mixin 类在 {@code mixin} 子包下，无法访问包私有成员。</p>
+     */
+    public static void capturePlace(ServerPlayerEntity sp, net.minecraft.block.BlockState placed,
+                                    double x, double y, double z) {
+        RecordingSession session = SESSIONS.get(sp.getUuid());
+        if (session == null) return;
+        Event e = new Event(
+                sp.getWorld().getTime(),
+                "block_place",
+                sp.getUuid().toString(),
+                sp.getWorld().getRegistryKey().getValue().toString(),
+                x, y, z,
+                placed.getBlock().getTranslationKey());
         session.append(e);
     }
 }
