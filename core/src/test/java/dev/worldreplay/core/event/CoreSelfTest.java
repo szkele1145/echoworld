@@ -33,6 +33,7 @@ public final class CoreSelfTest {
         codecOversizedTruncation();
         eventNullDimensionFallback();
         decoderSkipsInvalid();
+        eventCounterCountsAndCaches();
 
         if (failures > 0) {
             System.err.println("FAILED: " + failures + " test(s)");
@@ -227,6 +228,65 @@ public final class CoreSelfTest {
         check("负tick encode→decode为null", EventDecoder.decode(EventEncoder.encode(bad)) == null);
         Event bad2 = new Event(5, "", "p", "d", 0, 0, 0, "{}");
         check("空type encode→decode为null", EventDecoder.decode(EventEncoder.encode(bad2)) == null);
+    }
+
+    // ---- EventCounter ----
+
+    /**
+     * 事件数统计：正常计数、缓存命中、文件改动后重算、损坏文件返回 0。
+     *
+     * <p>缓存是这个类的全部意义所在——旧实现每次开 GUI 都要把每个录制
+     * 文件完整读一遍，所以这里要验证"文件没动就不重扫"。</p>
+     */
+    static void eventCounterCountsAndCaches() throws IOException {
+        java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("wr-counter");
+        try {
+            java.nio.file.Path f = dir.resolve("a.wrp");
+            java.nio.file.Files.write(f, sessionBytes(3));
+            EventCounter.clearCache();
+            check("计数=3", EventCounter.countEvents(f) == 3, "got=" + EventCounter.countEvents(f));
+            check("缓存命中结果一致", EventCounter.countEvents(f) == 3);
+
+            // 改文件（内容变了 → 大小/mtime 变化）后应重算
+            java.nio.file.Files.write(f, sessionBytes(5));
+            EventCounter.clearCache();
+            check("改文件后重算=5", EventCounter.countEvents(f) == 5, "got=" + EventCounter.countEvents(f));
+
+            // 损坏文件：magic 不符 → 返回 0，不抛异常
+            java.nio.file.Path bad = dir.resolve("bad.wrp");
+            java.nio.file.Files.write(bad, new byte[]{0x01, 0x02, 0x03, 0x04, 0x05});
+            check("损坏文件返回0", EventCounter.countEvents(bad) == 0);
+
+            // 截断文件：头正常但事件不完整 → 返回 0（不当成损坏算出天文数字）
+            java.nio.file.Path trunc = dir.resolve("t.wrp");
+            byte[] full = sessionBytes(4);
+            java.nio.file.Files.write(trunc, java.util.Arrays.copyOf(full, full.length - 6));
+            check("截断文件返回0", EventCounter.countEvents(trunc) == 0,
+                    "got=" + EventCounter.countEvents(trunc));
+
+            // 不存在的文件 → 0，不抛异常
+            check("不存在文件返回0", EventCounter.countEvents(dir.resolve("nope.wrp")) == 0);
+        } finally {
+            try (var s = java.nio.file.Files.list(dir)) {
+                for (var p : (Iterable<java.nio.file.Path>) s::iterator) {
+                    java.nio.file.Files.deleteIfExists(p);
+                }
+            }
+            java.nio.file.Files.deleteIfExists(dir);
+        }
+    }
+
+    /** 造一个含 n 条事件的会话文件字节流（头 + n 条事件）。 */
+    static byte[] sessionBytes(int n) throws IOException {
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        java.io.DataOutputStream out = new java.io.DataOutputStream(bos);
+        EventEncoder.writeHeader(out);
+        for (int i = 0; i < n; i++) {
+            EventEncoder.writeTo(new Event(i, "block_break", "p1",
+                    "minecraft:overworld", i, 0, 0, "{}"), out);
+        }
+        out.flush();
+        return bos.toByteArray();
     }
 
     // ---- 工具 ----

@@ -124,35 +124,15 @@ public final class RecordControlHandler {
                 && name.regionMatches(true, name.length() - 4, ".wrp", 0, 4);
     }
 
-    /** 快速统计 .wrp 内的事件数：逐条跳过字段（不解码内容，只读长度前缀）。 */
+    /**
+     * 快速统计 .wrp 内的事件数。
+     *
+     * <p>委托给 core 的 {@code EventCounter}——它带 (大小, 修改时间) 缓存，
+     * 文件没动就直接返回上次的计数。旧实现每次开列表都把<b>每个</b>录制
+     * 文件完整读一遍，录制多了开一次 GUI 就是几百 MB 的 IO。</p>
+     */
     private static int countEvents(Path f) {
-        try (var in = new java.io.DataInputStream(new java.io.BufferedInputStream(Files.newInputStream(f)))) {
-            if (dev.worldreplay.core.event.EventDecoder.readHeader(in) <= 0) return 0;
-            int count = 0;
-            while (in.available() > 0) {
-                in.readLong();              // tick
-                skipUtf(in);                 // type
-                skipUtf(in);                 // playerId
-                skipUtf(in);                 // dimension
-                in.readDouble(); in.readDouble(); in.readDouble();   // xyz
-                skipUtf(in);                 // data
-                count++;
-            }
-            return count;
-        } catch (Exception e) {
-            // 损坏/半截文件：以前静默返回 0，GUI 显示"0 事件"却看不出原因
-            LOGGER.warn("[WorldReplay] Corrupt or truncated recording: {}", f.getFileName());
-            return 0;
-        }
-    }
-
-    private static void skipUtf(java.io.DataInputStream in) throws java.io.IOException {
-        int len = in.readUnsignedShort();
-        int skipped = in.skipBytes(len);
-        // DataInputStream.skipBytes 内部会循环到底，正常情况 skipped == len；
-        // 若字节流被截断则不足，此时直接报错交给上层当损坏处理，而不是让后续
-        // readLong/readDouble 读到错位数据后算出天文数字的事件数
-        if (skipped != len) throw new java.io.EOFException("truncated string field");
+        return dev.worldreplay.core.event.EventCounter.countEvents(f);
     }
 
     /** 把列表发给玩家（/wr gui 分支与 C2S 请求共用）。 */

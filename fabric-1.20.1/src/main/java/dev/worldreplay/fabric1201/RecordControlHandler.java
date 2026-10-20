@@ -83,7 +83,8 @@ public final class RecordControlHandler {
                     if (!hasWrpSuffix(name) || !Files.isRegularFile(f)) continue;
                     try {
                         entries.add(new RecordListPackets.RecordListEntry(
-                                name, Files.size(f), Files.getLastModifiedTime(f).toMillis()));
+                                name, Files.size(f), Files.getLastModifiedTime(f).toMillis(),
+                                dev.worldreplay.core.event.EventCounter.countEvents(f)));
                     } catch (IOException ignored) {}
                 }
             } catch (IOException ignored) {}

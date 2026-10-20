@@ -34,7 +34,8 @@ public final class ClientPayloadHandlers {
             String name = buf.readString(32767);
             long size = buf.readVarLong();
             long modified = buf.readVarLong();
-            entries.add(new Entry(name, size, modified));
+            int events = buf.readVarInt();
+            entries.add(new Entry(name, size, modified, events));
         }
         if (client.player != null) {
             client.execute(() -> {
@@ -90,11 +91,14 @@ public final class ClientPayloadHandlers {
         public final String fileName;
         public final long size;
         public final long lastModified;
+        /** 录制内的事件条数（与 NeoForge 侧一致）。 */
+        public final int events;
 
-        public Entry(String fileName, long size, long lastModified) {
+        public Entry(String fileName, long size, long lastModified, int events) {
             this.fileName = fileName;
             this.size = size;
             this.lastModified = lastModified;
+            this.events = events;
         }
 
         @Override

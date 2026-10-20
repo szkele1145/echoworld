@@ -138,6 +138,7 @@ public class RecordingScreen extends Screen {
             boolean selected = (i == selectedIndex);
             Text line = Text.literal((selected ? "▶ " : "  ") + e.fileName)
                     .formatted(selected ? Formatting.AQUA : Formatting.GRAY)
+                    .append(Text.literal("  " + e.events + "ev").formatted(Formatting.DARK_GRAY))
                     .append(Text.literal("  " + e.size + " B").formatted(Formatting.DARK_GRAY));
             drawTextWithShadow(matrices, textRenderer, line, 30, y, selected ? 0x55FFFF : 0xFFFFFF);
             y += ROW_HEIGHT;

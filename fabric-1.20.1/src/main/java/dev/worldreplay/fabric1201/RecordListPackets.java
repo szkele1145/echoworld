@@ -27,16 +27,19 @@ public final class RecordListPackets {
         }
     }
 
-    /** 录制列表条目（文件名、大小、最后修改时间）。 */
+    /** 录制列表条目（文件名、大小、最后修改时间、事件数）。 */
     public static final class RecordListEntry {
         public final String fileName;
         public final long size;
         public final long lastModified;
+        /** 录制内的事件条数（与 NeoForge 侧 RecordListEntry 的第 4 个字段对齐）。 */
+        public final int events;
 
-        public RecordListEntry(String fileName, long size, long lastModified) {
+        public RecordListEntry(String fileName, long size, long lastModified, int events) {
             this.fileName = fileName;
             this.size = size;
             this.lastModified = lastModified;
+            this.events = events;
         }
     }
 
@@ -114,6 +117,7 @@ public final class RecordListPackets {
             buf.writeString(e.fileName);
             buf.writeVarLong(e.size);
             buf.writeVarLong(e.lastModified);
+            buf.writeVarInt(e.events);
         }
         return buf;
     }
@@ -122,7 +126,8 @@ public final class RecordListPackets {
         int count = buf.readVarInt();
         List<RecordListEntry> entries = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            entries.add(new RecordListEntry(buf.readString(32767), buf.readVarLong(), buf.readVarLong()));
+            entries.add(new RecordListEntry(buf.readString(32767), buf.readVarLong(),
+                    buf.readVarLong(), buf.readVarInt()));
         }
         return new RecordList(entries);
     }
