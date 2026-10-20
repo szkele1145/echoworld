@@ -71,10 +71,21 @@ public final class WorldReplayNetwork {
                     String fileName = buf.readString(32767);
                     int action = buf.readVarInt();
                     server.execute(() -> {
+                        // 防目录穿越：包可以手工构造，不能只靠客户端。
+                        // 旧实现直接 dir.resolve(fileName)——"../../../../secret"
+                        // 会读出 recordings 目录之外的文件并回传给客户端。
+                        if (!RecordControlHandler.isSafeFileName(fileName)) {
+                            RecordControlHandler.notifyFailure(player, "非法文件名");
+                            return;
+                        }
+                        Path dir = RecordControlHandler.recordingsDir();
+                        Path f = dir.resolve(RecordControlHandler.hasWrpSuffix(fileName)
+                                ? fileName : fileName + ".wrp");
+                        if (!f.normalize().getParent().equals(dir.normalize())) {
+                            RecordControlHandler.notifyFailure(player, "非法路径");
+                            return;
+                        }
                         if (action == 0) {
-                            Path dir = RecordControlHandler.recordingsDir();
-                            java.nio.file.Path f = dir.resolve(RecordControlHandler.hasWrpSuffix(fileName)
-                                    ? fileName : fileName + ".wrp");
                             if (java.nio.file.Files.isRegularFile(f)) {
                                 try {
                                     byte[] data = java.nio.file.Files.readAllBytes(f);

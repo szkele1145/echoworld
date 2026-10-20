@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * WorldReplay Fabric 1.20.1 网络通道与包处理。
+ * WorldReplay Fabric 1.19.4 网络通道与包处理。
  *
  * <p>注册所有自定义包通道，处理客户端↔服务端的录制控制、列表查询、回放分片下发。
  * 客户端接收器由 {@link dev.worldreplay.fabric1194.client.ClientPayloadHandlers} 在客户端入口中注册。</p>
@@ -39,7 +39,7 @@ public final class WorldReplayNetwork {
     /** 注册所有服务端网络接收器。 */
     public static void register() {
         // ---- 服务端接收器（客户端→服务端）----
-        // Fabric 1.20.1 registerGlobalReceiver 回调签名：(handler, player, buf, responseSender)
+        // Fabric 1.19.4 registerGlobalReceiver 回调签名：(handler, player, buf, responseSender)
         ServerPlayNetworking.registerGlobalReceiver(CHANNEL_RECORD_CONTROL,
                 (server, player, handler, buf, responseSender) -> {
                     boolean start = buf.readBoolean();
@@ -71,10 +71,21 @@ public final class WorldReplayNetwork {
                     String fileName = buf.readString(32767);
                     int action = buf.readVarInt();
                     server.execute(() -> {
+                        // 防目录穿越：包可以手工构造，不能只靠客户端。
+                        // 旧实现直接 dir.resolve(fileName)——"../../../../secret"
+                        // 会读出 recordings 目录之外的文件并回传给客户端。
+                        if (!RecordControlHandler.isSafeFileName(fileName)) {
+                            RecordControlHandler.notifyFailure(player, "非法文件名");
+                            return;
+                        }
+                        Path dir = RecordControlHandler.recordingsDir();
+                        Path f = dir.resolve(RecordControlHandler.hasWrpSuffix(fileName)
+                                ? fileName : fileName + ".wrp");
+                        if (!f.normalize().getParent().equals(dir.normalize())) {
+                            RecordControlHandler.notifyFailure(player, "非法路径");
+                            return;
+                        }
                         if (action == 0) {
-                            Path dir = RecordControlHandler.recordingsDir();
-                            java.nio.file.Path f = dir.resolve(RecordControlHandler.hasWrpSuffix(fileName)
-                                    ? fileName : fileName + ".wrp");
                             if (java.nio.file.Files.isRegularFile(f)) {
                                 try {
                                     byte[] data = java.nio.file.Files.readAllBytes(f);
