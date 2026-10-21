@@ -1,0 +1,35 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        // Maven Central / Gradle Plugin Portal 直连不通，用阿里云镜像
+        maven {
+            name = 'AliyunCentral'
+            url = 'https://maven.aliyun.com/repository/central'
+        }
+        maven {
+            name = 'AliyunPlugins'
+            url = 'https://maven.aliyun.com/repository/gradle-plugin'
+        }
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        maven {
+            name = 'AliyunCentral'
+            url = uri('https://maven.aliyun.com/repository/central')
+        }
+        maven {
+            name = 'Fabric'
+            url = uri('https://maven.fabricmc.net/')
+        }
+    }
+}
+
+rootProject.name = 'worldreplay-fabric-1194'
+
+include 'core'
+project(':core').projectDir = file('../core')

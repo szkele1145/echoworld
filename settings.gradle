@@ -1,3 +1,3 @@
 rootProject.name = 'echoworld'
 
-include 'core', 'nf-1.21.1', 'fabric-1.20.1', 'fabric-1.19.4'
+include 'core', 'nf-1.21.1', 'fabric-1.20.1', 'fabric-1.19.4', 'fabric-1.19.2', 'fabric-1.18.2', 'fabric-1.21.8', 'fabric-1.21.11'

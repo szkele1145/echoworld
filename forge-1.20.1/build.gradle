@@ -1,0 +1,76 @@
+plugins {
+    id 'java-library'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+}
+
+version = '0.3.6'
+group = 'dev.worldreplay'
+base { archivesName = 'worldreplay' }
+
+// 注意：本模块不能加进根 settings.gradle ——
+// ForgeGradle 6 不支持 Gradle 9.x（"Versions Gradle 9.0 and newer are not supported yet"），
+// 而根项目用的是 Gradle 9.4.1。Forge 模块必须用 Gradle 8.x 单独构建：
+//   D:\tools\gradle-8.10.2\bin\gradle.bat build
+// （Gradle 必须装在没有空格的路径下，否则 worker daemon 的 classpath 会被截断，
+//  报 ClassNotFoundException: SystemApplicationClassLoaderWorker）
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    copyIdeResources = true
+
+    runs {
+        client { }
+        server {
+            programArgument '--nogui'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.28'
+    // core 是纯 Java（零依赖），源码直接并入本模块，不走 Gradle 项目依赖
+    // （ForgeGradle 的 jar 任务不认 project(':core') 的 classes 目录）
+    implementation files('libs/worldreplay-core.jar')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+processResources {
+    var replaceProperties = [
+            minecraft_version      : '1.20.1',
+            minecraft_version_range: '[1.20.1,1.21)',
+            forge_version          : '47.4.28',
+            forge_version_range    : '[47,)',
+            mod_id                 : 'worldreplay',
+            mod_name               : 'WorldReplay',
+            mod_license            : 'All Rights Reserved',
+            mod_version            : project.version,
+            mod_authors            : 'WorldReplay',
+            mod_description        : 'Full behavior recording and replay for Minecraft worlds: block changes, entity movement, and container operations.'
+    ]
+    inputs.properties replaceProperties
+    filesMatching('META-INF/mods.toml') {
+        expand replaceProperties
+    }
+}
+
+jar {
+    archiveFileName = "worldreplay-${version}-1.20.1-forge.jar"
+    manifest {
+        attributes([
+                'Specification-Title'     : 'worldreplay',
+                'Specification-Vendor'    : 'WorldReplay',
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : 'WorldReplay',
+                'Implementation-Version'  : project.version,
+                'Implementation-Vendor'   : 'WorldReplay'
+        ])
+    }
+}
