@@ -3,7 +3,7 @@ plugins {
     id 'fabric-loom' version '1.9.2'
 }
 
-version = '0.3.0'
+version = '0.3.1'
 group = 'dev.worldreplay'
 base { archivesName = 'worldreplay' }
 

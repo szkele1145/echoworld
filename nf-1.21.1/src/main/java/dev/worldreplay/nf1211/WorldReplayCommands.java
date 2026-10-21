@@ -2,17 +2,12 @@ package dev.worldreplay.nf1211;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import dev.worldreplay.core.event.Event;
-import dev.worldreplay.core.event.EventDecoder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * /wr 命令：录制库与回放入口。
@@ -69,25 +64,24 @@ public final class WorldReplayCommands {
                         + f.getFileName() + " (" + (size / (1024 * 1024)) + " MiB)"));
                 return 0;
             }
-            byte[] data = Files.readAllBytes(f);
-            java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data));
-            byte ver = EventDecoder.readHeader(in);
-            if (ver <= 0) {
-                src.sendFailure(Component.literal("[WorldReplay] Bad magic (not an WorldReplay recording)"));
-                return 0;
+            // 校验头 + 数事件数：用 EventCounter 流式扫描，不把每个事件
+            // 构造出来装进 List——480 MiB 的录制能有上千万条事件，
+            // 全装进内存就是 GB 级，而这里只需要一个条数。
+            try (java.io.DataInputStream hin = new java.io.DataInputStream(
+                    new java.io.BufferedInputStream(Files.newInputStream(f)))) {
+                byte ver = dev.worldreplay.core.event.EventDecoder.readHeader(hin);
+                if (ver <= 0) {
+                    src.sendFailure(Component.literal("[WorldReplay] Bad magic (not an WorldReplay recording)"));
+                    return 0;
+                }
             }
-            List<Event> events = new ArrayList<>();
-            int bad = 0;
-            while (in.available() > 0) {
-                Event ev = EventDecoder.readFrom(in);
-                if (ev != null) events.add(ev);
-                else bad++;
-            }
-            if (events.isEmpty()) {
+            int count = dev.worldreplay.core.event.EventCounter.countEvents(f);
+            if (count <= 0) {
                 src.sendFailure(Component.literal("[WorldReplay] Nothing to replay: " + f.getFileName()
                         + " has no readable events"));
                 return 0;
             }
+            byte[] data = Files.readAllBytes(f);
             // 交给客户端回放：与 GUI 的"回放"按钮走同一条数据通路（分片下发，
             // 客户端 ClientPayloadHandlers -> ReplayVisualizer.begin）
             if (src.getPlayer() == null) {
@@ -95,10 +89,10 @@ public final class WorldReplayCommands {
                 return 0;
             }
             int chunks = RecordControlHandler.sendRecording(src.getPlayer(), f.getFileName().toString(), data);
-            final String msg = "[WorldReplay] Replaying " + events.size() + " events ("
-                    + bad + " skipped) from " + f.getFileName() + " (" + chunks + " chunks)";
+            final String msg = "[WorldReplay] Replaying " + count + " events from "
+                    + f.getFileName() + " (" + chunks + " chunks)";
             src.sendSuccess(() -> Component.literal(msg), false);
-            return events.size();
+            return count;
         } catch (Exception ex) {
             src.sendFailure(Component.literal("[WorldReplay] Load failed: " + ex.getMessage()));
             return 0;
