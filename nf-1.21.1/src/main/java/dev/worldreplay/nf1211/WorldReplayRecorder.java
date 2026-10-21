@@ -49,7 +49,12 @@ public final class WorldReplayRecorder {
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
         UUID id = sp.getUUID();
         RecordingSession session = SESSIONS.remove(id);
-        if (session != null) {
+        if (session == null) return;
+        // 整段包 try/catch：退服事件触发时玩家可能已经离开世界，
+        // serverLevel() 有可能抛异常。而 session 已经被 SESSIONS.remove
+        // 拿走了——一旦在这里抛出，后面的 stopRecord + save 全都不会执行，
+        // 玩家的录制直接丢失（且不会有任何提示）。
+        try {
             // 会话时长闭环：先 stopRecord 落定 endTick（durationTicks 精确化），再导出
             session.stopRecord(sp.serverLevel().getGameTime());
             // 落盘：worldreplay/recordings/<uuid>-<startTick>.wrp（core 二进制格式，magic 0xE7C0）
@@ -59,6 +64,20 @@ public final class WorldReplayRecorder {
             if (f != null) {
                 LOGGER.info("[WorldReplay] Recording saved {} ({} events)",
                         f.getFileName(), session.eventCount());
+            }
+        } catch (Exception e) {
+            // 兜底：退服路径的任何异常都不能让录制白丢——用 overworld 的 tick
+            // 再试一次落盘。
+            LOGGER.warn("[WorldReplay] Logout save failed ({}), retrying with fallback", e.getMessage());
+            try {
+                session.stopRecord(sp.getServer().overworld().getGameTime());
+                Path f = save(session, id, RecordControlHandler.recordingsDir(sp.getServer()));
+                if (f != null) {
+                    LOGGER.info("[WorldReplay] Recording saved (fallback) {} ({} events)",
+                            f.getFileName(), session.eventCount());
+                }
+            } catch (Exception e2) {
+                LOGGER.error("[WorldReplay] Recording lost for {}: {}", id, e2.getMessage());
             }
         }
     }
@@ -87,7 +106,18 @@ public final class WorldReplayRecorder {
         // 会话时长闭环（与 logout 路径一致：同一维度、同一 tick 源；
         // 旧实现此行用 overworld().getGameTime()，与 logout 的 serverLevel() 不一致，
         // 下界/末地录制会因两个维度 tick 计数不同而多算/少算时长）
-        session.stopRecord(sp != null ? sp.serverLevel().getGameTime() : server.overworld().getGameTime());
+        //
+        // 兜底：玩家已离线时 serverLevel() 可能返回 null/抛异常，
+        // 而这行一旦抛异常就会打断整个 stopRecord + save 流程——录制直接丢失。
+        long endTick;
+        try {
+            endTick = (sp != null && sp.serverLevel() != null)
+                    ? sp.serverLevel().getGameTime()
+                    : server.overworld().getGameTime();
+        } catch (Exception e) {
+            endTick = server.overworld().getGameTime();
+        }
+        session.stopRecord(endTick);
         Path f = save(session, id, RecordControlHandler.recordingsDir(server));
         if (f != null) {
             LOGGER.info("[WorldReplay] Manual recording saved {} ({} events)", f.getFileName(), session.eventCount());

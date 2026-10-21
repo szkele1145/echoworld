@@ -99,7 +99,17 @@ public final class WorldReplayRecorder {
         if (session == null) return;
         ServerPlayerEntity sp = server.getPlayerManager().getPlayer(id);
         String name = sp != null ? sp.getName().getString() : id.toString();
-        session.stopRecord(sp != null ? sp.getWorld().getTime() : server.getOverworld().getTime());
+        // 兜底：玩家已离线时 getWorld() 可能返回 null，
+        // 这行抛异常会打断整个 stopRecord + save 流程——录制直接丢失。
+        long endTick;
+        try {
+            endTick = (sp != null && sp.getWorld() != null)
+                    ? sp.getWorld().getTime()
+                    : server.getOverworld().getTime();
+        } catch (Exception e) {
+            endTick = server.getOverworld().getTime();
+        }
+        session.stopRecord(endTick);
         Path f = save(session, id);
         if (f != null) {
             LOGGER.info("[WorldReplay] Manual recording saved {} ({} events)",
@@ -124,11 +134,29 @@ public final class WorldReplayRecorder {
         UUID id = player.getUuid();
         RecordingSession session = SESSIONS.remove(id);
         if (session == null) return;
-        session.stopRecord(player.getWorld().getTime());
-        Path f = save(session, id);
-        if (f != null) {
-            LOGGER.info("[WorldReplay] Recording saved {} ({} events)",
-                    f.getFileName(), session.eventCount());
+        // 整段包 try/catch：DISCONNECT 回调触发时玩家可能已经离开世界，
+        // getWorld() 可能返回 null。而 session 已经被 SESSIONS.remove 拿走了
+        // ——一旦抛出，后面的 stopRecord + save 都不执行，录制直接丢失。
+        try {
+            session.stopRecord(player.getWorld().getTime());
+            Path f = save(session, id);
+            if (f != null) {
+                LOGGER.info("[WorldReplay] Recording saved {} ({} events)",
+                        f.getFileName(), session.eventCount());
+            }
+        } catch (Exception e) {
+            // 兜底：用 overworld 的 tick 再试一次落盘
+            LOGGER.warn("[WorldReplay] Disconnect save failed ({}), retrying with fallback", e.getMessage());
+            try {
+                session.stopRecord(server.getOverworld().getTime());
+                Path f = save(session, id);
+                if (f != null) {
+                    LOGGER.info("[WorldReplay] Recording saved (fallback) {} ({} events)",
+                            f.getFileName(), session.eventCount());
+                }
+            } catch (Exception e2) {
+                LOGGER.error("[WorldReplay] Recording lost for {}: {}", id, e2.getMessage());
+            }
         }
     }
 
