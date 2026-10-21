@@ -41,6 +41,16 @@ public final class RecordControlHandler {
      */
     static final String WR_RENAME_TMP = ".wr-rename.tmp";
 
+    /**
+     * 单个录制允许下发的最大字节数（480 MiB），与客户端
+     * {@code ClientPayloadHandlers.MAX_RECORDING_BYTES} 一致。
+     *
+     * <p>下发路径是 {@code Files.readAllBytes} + 逐片 {@code copyOfRange}，
+     * 峰值内存约为文件大小的两倍。超大文件应该在服务端就被挡住并给出
+     * 明确提示，而不是先读进内存、发一路、最后被客户端丢弃。</p>
+     */
+    static final long MAX_SEND_BYTES = 480L * 1024 * 1024;
+
     @SubscribeEvent
     public static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar("1").optional();
@@ -203,6 +213,15 @@ public final class RecordControlHandler {
         }
         // ACTION_REPLAY：读文件、分片下发给请求者
         try {
+            long size = Files.size(f);
+            // 与客户端上限对齐（ClientPayloadHandlers.MAX_RECORDING_BYTES）：
+            // 超过这个量客户端会直接丢弃，服务端没必要先读进内存再白发一趟。
+            if (size > MAX_SEND_BYTES) {
+                LOGGER.warn("[WorldReplay] Recording too large to send: {} ({} bytes)",
+                        f.getFileName(), size);
+                notifyFailure(sender, "worldreplay.replay.too_large");
+                return;
+            }
             byte[] data = Files.readAllBytes(f);
             if (data.length == 0) {
                 notifyFailure(sender, "worldreplay.replay.failed");

@@ -61,6 +61,14 @@ public final class WorldReplayCommands {
             return 0;
         }
         try {
+            // 与 GUI 的"回放"按钮同一条上限：超大录制先挡住，
+            // 别 readAllBytes 进内存再被客户端丢弃
+            long size = Files.size(f);
+            if (size > RecordControlHandler.MAX_SEND_BYTES) {
+                src.sendFailure(Component.literal("[WorldReplay] Recording too large to replay: "
+                        + f.getFileName() + " (" + (size / (1024 * 1024)) + " MiB)"));
+                return 0;
+            }
             byte[] data = Files.readAllBytes(f);
             java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data));
             byte ver = EventDecoder.readHeader(in);

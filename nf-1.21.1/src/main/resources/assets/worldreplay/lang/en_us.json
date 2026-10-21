@@ -19,5 +19,6 @@
     "worldreplay.rename.failed": "[WorldReplay] Rename failed: file is locked or not writable",
     "worldreplay.rename.disabled": "[WorldReplay] Rename is disabled (config option renameEnabled)",
     "worldreplay.delete.failed": "[WorldReplay] Delete failed: file is locked or read-only",
-    "worldreplay.replay.failed": "[WorldReplay] Replay failed: recording is empty or unreadable"
+    "worldreplay.replay.failed": "[WorldReplay] Replay failed: recording is empty or unreadable",
+    "worldreplay.replay.too_large": "[WorldReplay] Replay failed: recording is too large (480 MiB limit)"
 }

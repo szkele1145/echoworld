@@ -35,6 +35,15 @@ public final class RecordControlHandler {
     /** 临时文件后缀（重命名原子操作用）。 */
     public static final String WR_RENAME_TMP = ".wrp.tmp";
 
+    /**
+     * 单个录制允许下发的最大字节数（480 MiB），与客户端
+     * {@code ReplayVisualizer.MAX_TOTAL_BYTES} 一致。
+     *
+     * <p>下发路径是 {@code Files.readAllBytes} + 逐片 {@code copyOfRange}，
+     * 峰值内存约为文件大小的两倍。</p>
+     */
+    public static final long MAX_SEND_BYTES = 480L * 1024 * 1024;
+
     private RecordControlHandler() {}
 
     /** 录制目录：{@code <gameDir>/worldreplay/recordings}。 */

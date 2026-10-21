@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.78'
 }
 
-version = '0.2.7'
+version = '0.2.8'
 group = 'dev.worldreplay'
 base { archivesName = 'worldreplay' }
 

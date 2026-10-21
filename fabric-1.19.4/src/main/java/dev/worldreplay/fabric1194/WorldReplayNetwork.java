@@ -97,6 +97,14 @@ public final class WorldReplayNetwork {
                         if (action == 0) {
                             if (java.nio.file.Files.isRegularFile(f)) {
                                 try {
+                                    // 与客户端上限对齐：超大录制先挡住，
+                                    // 别 readAllBytes 进内存再被客户端丢弃
+                                    long size = java.nio.file.Files.size(f);
+                                    if (size > RecordControlHandler.MAX_SEND_BYTES) {
+                                        RecordControlHandler.notifyFailure(player,
+                                                "录制文件过大（上限 480 MiB）");
+                                        return;
+                                    }
                                     byte[] data = java.nio.file.Files.readAllBytes(f);
                                     sendRecording(player, f.getFileName().toString(), data);
                                 } catch (Exception e) {
