@@ -46,6 +46,14 @@ public final class ClientPayloadHandlers {
     private static final Map<String, ByteArrayOutputStream> incoming = new HashMap<>();
 
     /**
+     * 单次传输允许累积的最大字节数（480 MiB）。
+     *
+     * <p>客户端<b>不能信任服务端</b>：恶意服务器可以一直发分片，
+     * {@link ByteArrayOutputStream} 会一路涨到 OOM。正常录制远小于这个量。</p>
+     */
+    private static final long MAX_RECORDING_BYTES = 480L * 1024 * 1024;
+
+    /**
      * S2C OpenRecordLibrary：/wr gui 的开屏信号。
      *
      * <p>只置标志、不直接开屏——真正的界面构建发生在紧随其后的 {@link #handleRecordList}
@@ -85,6 +93,13 @@ public final class ClientPayloadHandlers {
                 }
                 ByteArrayOutputStream bos = incoming.computeIfAbsent(
                         fileName, k -> new ByteArrayOutputStream());
+                // 总字节上限：不信任服务端——恶意服务器可以持续发片，
+                // ByteArrayOutputStream 会一路涨到 OOM。这里按实际写入量挡住。
+                if (bos.size() > MAX_RECORDING_BYTES) {
+                    incoming.remove(fileName);
+                    LOGGER.warn("[WorldReplay] Recording {} exceeds size limit, dropped", fileName);
+                    return;
+                }
                 bos.write(payload.data());
                 if (!payload.last()) return;   // 还有后续分片
 

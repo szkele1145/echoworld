@@ -28,12 +28,33 @@ public final class ReplayVisualizer {
     private static final long CHUNK_TIMEOUT_MS = 30_000L;
     /** 同时累积中的传输上限，防止内存被撑爆。 */
     private static final int MAX_PENDING_TRANSFERS = 8;
+    /**
+     * 单次传输允许的最大分片数。
+     *
+     * <p>服务端按 24 KiB 切片，{@value #MAX_CHUNKS} 片约 480 MiB——远大于任何
+     * 实际录制，同时挡住"发一个 chunkIndex 天文数字的包"这类攻击：
+     * 旧实现 {@code while (parts.size() <= chunkIndex) parts.add(null)}
+     * 会被 {@code chunkIndex = 2_000_000_000} 直接撑成 20 亿个槽位（约 8 GiB）→ OOM。</p>
+     */
+    private static final int MAX_CHUNKS = 20_000;
+    /** 单次传输允许的最大总字节数（与 {@link #MAX_CHUNKS} × 24 KiB 对齐）。 */
+    private static final long MAX_TOTAL_BYTES = (long) MAX_CHUNKS * 24 * 1024;
 
     private ReplayVisualizer() {}
 
     /** 接收单片录制数据，齐全后解码并启动回放。 */
     public static void receiveChunk(String fileName, int chunkIndex, boolean last, byte[] payload) {
         evictStale();
+        // 分片索引越界直接丢弃：不能让客户端按服务端给的索引分配这么多槽位
+        if (chunkIndex < 0 || chunkIndex >= MAX_CHUNKS) {
+            sendClientMessage("[WorldReplay] 分片索引越界，丢弃: " + chunkIndex);
+            return;
+        }
+        if (payload == null || payload.length > 24 * 1024) {
+            sendClientMessage("[WorldReplay] 分片过大，丢弃 " + fileName);
+            cleanup(fileName);
+            return;
+        }
         if (!CHUNKS.containsKey(fileName) && CHUNKS.size() >= MAX_PENDING_TRANSFERS) {
             sendClientMessage("[WorldReplay] 传输任务过多，忽略 " + fileName);
             return;
@@ -42,6 +63,16 @@ public final class ReplayVisualizer {
         List<byte[]> parts = CHUNKS.computeIfAbsent(fileName, k -> new ArrayList<>());
         while (parts.size() <= chunkIndex) parts.add(null);
         parts.set(chunkIndex, payload);
+        // 累计字节数超限：丢弃整次传输（防止多片叠加撑爆内存）
+        long total = 0;
+        for (byte[] p : parts) {
+            if (p != null) total += p.length;
+            if (total > MAX_TOTAL_BYTES) {
+                sendClientMessage("[WorldReplay] 录制数据超过上限，丢弃 " + fileName);
+                cleanup(fileName);
+                return;
+            }
+        }
         if (last) LAST_INDEX.put(fileName, chunkIndex);
         if (isComplete(fileName)) {
             byte[] data = assemble(fileName);
@@ -79,11 +110,19 @@ public final class ReplayVisualizer {
 
     private static byte[] assemble(String fileName) {
         List<byte[]> parts = CHUNKS.get(fileName);
-        int total = 0;
-        for (byte[] p : parts) total += p.length;
-        byte[] out = new byte[total];
+        if (parts == null) return new byte[0];
+        long total = 0;
+        for (byte[] p : parts) {
+            if (p != null) total += p.length;
+        }
+        // 双保险：receiveChunk 已按片累计校验，这里再挡一次（并发下状态可能已变）
+        if (total > MAX_TOTAL_BYTES || total > Integer.MAX_VALUE - 8) {
+            return new byte[0];
+        }
+        byte[] out = new byte[(int) total];
         int off = 0;
         for (byte[] p : parts) {
+            if (p == null) continue;
             System.arraycopy(p, 0, out, off, p.length);
             off += p.length;
         }
