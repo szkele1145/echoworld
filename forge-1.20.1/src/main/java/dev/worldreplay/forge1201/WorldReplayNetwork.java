@@ -34,15 +34,8 @@ public final class WorldReplayNetwork {
             .serverAcceptedVersions(WorldReplayNetwork::isAccepted)
             .simpleChannel();
 
-    /** 包序号。 */
+    /** 包序号计数器（register() 内自增，顺序即协议顺序）。 */
     private static int id = 0;
-    private static final int ID_RECORD_CONTROL = id++;
-    private static final int ID_REQUEST_RECORD_LIST = id++;
-    private static final int ID_REQUEST_RECORDING = id++;
-    private static final int ID_REQUEST_RENAME = id++;
-    private static final int ID_RECORD_LIST = id++;
-    private static final int ID_RECORDING_DATA = id++;
-    private static final int ID_OPEN_RECORD_LIBRARY = id++;
 
     /** 最大分片大小（24 KiB）。 */
     public static final int MAX_CHUNK = 24 * 1024;
@@ -194,8 +187,11 @@ public final class WorldReplayNetwork {
                                          Supplier<NetworkEvent.Context> ctx) {
         NetworkEvent.Context context = ctx.get();
         context.enqueueWork(() -> {
-            net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
-            client.execute(() -> dev.worldreplay.forge1201.client.ClientPayloadHandlers.applyRecordList(list));
+            // 客户端逻辑必须隔离在 DistExecutor 里：服务端运行时会因为
+            // 加载不到 net.minecraft.client.* 类而崩溃。
+            net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
+                    net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    () -> () -> dev.worldreplay.forge1201.client.ClientPayloadHandlers.applyRecordList(list));
         });
         context.setPacketHandled(true);
     }
@@ -204,8 +200,9 @@ public final class WorldReplayNetwork {
                                             Supplier<NetworkEvent.Context> ctx) {
         NetworkEvent.Context context = ctx.get();
         context.enqueueWork(() -> {
-            net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
-            client.execute(() -> dev.worldreplay.forge1201.client.ClientPayloadHandlers.applyRecordingData(data));
+            net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
+                    net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    () -> () -> dev.worldreplay.forge1201.client.ClientPayloadHandlers.applyRecordingData(data));
         });
         context.setPacketHandled(true);
     }
@@ -214,8 +211,9 @@ public final class WorldReplayNetwork {
                                                 Supplier<NetworkEvent.Context> ctx) {
         NetworkEvent.Context context = ctx.get();
         context.enqueueWork(() -> {
-            net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
-            client.execute(() -> dev.worldreplay.forge1201.client.ClientPayloadHandlers.openRecordLibrary());
+            net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
+                    net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    () -> () -> dev.worldreplay.forge1201.client.ClientPayloadHandlers.openRecordLibrary());
         });
         context.setPacketHandled(true);
     }

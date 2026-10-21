@@ -104,15 +104,18 @@ public final class RecordListPackets {
     private RecordListPackets() {}
 
     // ---- FriendlyByteBuf 序列化辅助 ----
+    //
+    // Forge 的 SimpleChannel.registerMessage 要求编码器签名是
+    // BiConsumer<MSG, FriendlyByteBuf>（消息在前，缓冲区在后），
+    // 与 Fabric 的 PacketByteBufs.create() 风格不同，这里统一成
+    // "void encode(MSG msg, FriendlyByteBuf buf)"。
 
-    public static FriendlyByteBuf encodeRecordControl(RecordControl ctrl) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+    public static void encodeRecordControl(RecordControl ctrl, FriendlyByteBuf buf) {
         buf.writeBoolean(ctrl.start);
         buf.writeVarInt(ctrl.players.size());
         for (UUID id : ctrl.players) {
             buf.writeUUID(id);
         }
-        return buf;
     }
 
     public static RecordControl decodeRecordControl(FriendlyByteBuf buf) {
@@ -125,8 +128,7 @@ public final class RecordListPackets {
         return new RecordControl(start, players);
     }
 
-    public static FriendlyByteBuf encodeRecordList(RecordList list) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+    public static void encodeRecordList(RecordList list, FriendlyByteBuf buf) {
         buf.writeVarInt(list.entries.size());
         for (RecordListEntry e : list.entries) {
             buf.writeUtf(e.fileName);
@@ -134,7 +136,6 @@ public final class RecordListPackets {
             buf.writeVarLong(e.lastModified);
             buf.writeVarInt(e.events);
         }
-        return buf;
     }
 
     public static RecordList decodeRecordList(FriendlyByteBuf buf) {
@@ -147,26 +148,37 @@ public final class RecordListPackets {
         return new RecordList(entries);
     }
 
-    public static FriendlyByteBuf encodeRequestRecording(RequestRecording req) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+    public static void encodeRequestRecording(RequestRecording req, FriendlyByteBuf buf) {
         buf.writeUtf(req.fileName);
         buf.writeVarInt(req.action);
-        return buf;
     }
 
     public static RequestRecording decodeRequestRecording(FriendlyByteBuf buf) {
         return new RequestRecording(buf.readUtf(32767), buf.readVarInt());
     }
 
-    public static FriendlyByteBuf encodeRequestRename(RequestRename req) {
-        FriendlyByteBuf buf = new FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+    public static void encodeRequestRename(RequestRename req, FriendlyByteBuf buf) {
         buf.writeUtf(req.oldName);
         buf.writeUtf(req.newName);
-        return buf;
     }
 
     public static RequestRename decodeRequestRename(FriendlyByteBuf buf) {
         return new RequestRename(buf.readUtf(32767), buf.readUtf(32767));
+    }
+
+    public static void encodeRecordingData(RecordingData data, FriendlyByteBuf buf) {
+        buf.writeUtf(data.fileName);
+        buf.writeVarInt(data.chunkIndex);
+        buf.writeBoolean(data.last);
+        buf.writeByteArray(data.payload);
+    }
+
+    public static RecordingData decodeRecordingData(FriendlyByteBuf buf) {
+        String fileName = buf.readUtf(32767);
+        int chunkIndex = buf.readVarInt();
+        boolean last = buf.readBoolean();
+        byte[] payload = buf.readByteArray();
+        return new RecordingData(fileName, chunkIndex, last, payload);
     }
 
     /** 构造本模组的资源标识 {@code worldreplay:<path>}。 */

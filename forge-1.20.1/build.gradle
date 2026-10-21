@@ -21,7 +21,8 @@ minecraft {
     runs {
         client { }
         server {
-            programArgument '--nogui'
+            // FG6 的 RunConfig 用 args 块，不是 programArgument
+            args '--nogui'
         }
     }
 }
@@ -32,9 +33,17 @@ repositories {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.28'
-    // core 是纯 Java（零依赖），源码直接并入本模块，不走 Gradle 项目依赖
-    // （ForgeGradle 的 jar 任务不认 project(':core') 的 classes 目录）
-    implementation files('libs/worldreplay-core.jar')
+    // core 是纯 Java（零依赖）。把它的源码目录直接并进本模块的源集：
+    // 这样 core 的类会被打进最终的 jar，用户不需要额外装依赖。
+    // （不用 Gradle project 依赖：ForgeGradle 6 与 Gradle 8 的 composite build 兼容性差。）
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir rootProject.file('../core/src/main/java')
+        }
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {
