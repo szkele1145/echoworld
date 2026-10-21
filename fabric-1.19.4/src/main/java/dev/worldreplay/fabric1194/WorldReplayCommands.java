@@ -51,34 +51,41 @@ public final class WorldReplayCommands {
             return 0;
         }
         try {
-            byte[] data = Files.readAllBytes(f);
-            java.io.DataInputStream in = new java.io.DataInputStream(new java.io.ByteArrayInputStream(data));
-            byte ver = EventDecoder.readHeader(in);
-            if (ver <= 0) {
-                src.sendFeedback(Text.literal("[WorldReplay] Bad magic (not an WorldReplay recording)"), false);
+            // 与 nf 1.21.1 同一条上限：超大录制先挡住，
+            // 别 readAllBytes 进内存再被客户端丢弃
+            long size = Files.size(f);
+            if (size > RecordControlHandler.MAX_SEND_BYTES) {
+                src.sendFeedback(Text.literal("[WorldReplay] Recording too large to replay: "
+                        + f.getFileName() + " (" + (size / (1024 * 1024)) + " MiB)"), false);
                 return 0;
             }
-            java.util.List<dev.worldreplay.core.event.Event> events = new java.util.ArrayList<>();
-            int bad = 0;
-            while (in.available() > 0) {
-                dev.worldreplay.core.event.Event ev = EventDecoder.readFrom(in);
-                if (ev != null) events.add(ev);
-                else bad++;
+            // 校验头 + 数事件数：用 EventCounter 流式扫描，不把每个事件
+            // 构造出来装进 List——480 MiB 的录制能有上千万条事件，
+            // 全装进内存就是 GB 级，而这里只需要一个条数。
+            try (java.io.DataInputStream hin = new java.io.DataInputStream(
+                    new java.io.BufferedInputStream(Files.newInputStream(f)))) {
+                byte ver = EventDecoder.readHeader(hin);
+                if (ver <= 0) {
+                    src.sendFeedback(Text.literal("[WorldReplay] Bad magic (not an WorldReplay recording)"), false);
+                    return 0;
+                }
             }
-            if (events.isEmpty()) {
+            int count = dev.worldreplay.core.event.EventCounter.countEvents(f);
+            if (count <= 0) {
                 src.sendFeedback(Text.literal("[WorldReplay] Nothing to replay: " + f.getFileName()
                         + " has no readable events"), false);
                 return 0;
             }
+            byte[] data = Files.readAllBytes(f);
             if (src.getPlayer() == null) {
                 src.sendFeedback(Text.literal("[WorldReplay] Replay needs a player (run it in-game)"), false);
                 return 0;
             }
             int chunks = RecordControlHandler.sendRecording(src.getPlayer(), f.getFileName().toString(), data);
-            final String msg = "[WorldReplay] Replaying " + events.size() + " events ("
-                    + bad + " skipped) from " + f.getFileName() + " (" + chunks + " chunks)";
+            final String msg = "[WorldReplay] Replaying " + count + " events from "
+                    + f.getFileName() + " (" + chunks + " chunks)";
             src.sendFeedback(Text.literal(msg), false);
-            return events.size();
+            return count;
         } catch (Exception ex) {
             src.sendFeedback(Text.literal("[WorldReplay] Load failed: " + ex.getMessage()), false);
             return 0;
