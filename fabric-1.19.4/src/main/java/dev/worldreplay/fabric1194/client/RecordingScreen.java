@@ -136,7 +136,22 @@ public class RecordingScreen extends Screen {
         for (int i = scrollOffset; i < Math.min(ENTRIES.size(), scrollOffset + VISIBLE_ROWS); i++) {
             ClientPayloadHandlers.Entry e = ENTRIES.get(i);
             boolean selected = (i == selectedIndex);
-            Text line = Text.literal((selected ? "▶ " : "  ") + e.fileName)
+            // 文件名过长时截断（保留尾部，扩展名和序号在后面更有用）：
+            // 整行是左对齐拼接的，不截断会一直超出屏幕右边界，后面的
+            // 事件数/大小直接被裁掉。
+            String name = e.fileName;
+            int nameMaxW = Math.max(40, width - 30 - 150);
+            if (textRenderer.getWidth(name) > nameMaxW) {
+                String tail = "…";
+                int tailW = textRenderer.getWidth(tail);
+                StringBuilder sb = new StringBuilder();
+                for (int k = name.length() - 1; k >= 0; k--) {
+                    sb.insert(0, name.charAt(k));
+                    if (textRenderer.getWidth(sb.toString()) + tailW > nameMaxW) break;
+                }
+                name = tail + sb;
+            }
+            Text line = Text.literal((selected ? "▶ " : "  ") + name)
                     .formatted(selected ? Formatting.AQUA : Formatting.GRAY)
                     .append(Text.literal("  " + e.events + "ev").formatted(Formatting.DARK_GRAY))
                     .append(Text.literal("  " + e.size + " B").formatted(Formatting.DARK_GRAY));

@@ -197,11 +197,27 @@ public class RecordingScreen extends Screen {
             int bg = i == selectedFile ? 0xFF1F6FEB : (hov ? 0xFF292E36 : 0);
             if (bg != 0) g.fill(left + 6, y, left + 6 + listW, y + 19, bg);
             String size = f.size() < 1024 ? f.size() + "B" : (f.size() / 1024) + "KB";
-            g.drawString(font, f.fileName(), left + 12, y + 6, i == selectedFile ? 0xFFFFFF : 0xC9D1D9);
             // 右侧元信息：事件数 + 大小（事件数是回放价值的第一信号）
             String events = f.events() + "ev";
             String meta = events + " " + size;
-            g.drawString(font, meta, left + 6 + listW - 4 - font.width(meta), y + 6, 0x6E7681);
+            int metaW = font.width(meta);
+            g.drawString(font, meta, left + 6 + listW - 4 - metaW, y + 6, 0x6E7681);
+            // 文件名左对齐，但右边界要让开 meta 区域——文件名最长 128 字符
+            // （约 768px），而左栏最多约 280px，不截断必然与 meta 重叠成一团。
+            // 保留尾部（扩展名和序号在后面更有用），中间省略。
+            int nameMaxW = listW - 12 - metaW - 8;
+            String shown = f.fileName();
+            if (font.width(shown) > nameMaxW) {
+                String tail = "…";
+                int tailW = font.width(tail);
+                StringBuilder sb = new StringBuilder();
+                for (int k = shown.length() - 1; k >= 0; k--) {
+                    sb.insert(0, shown.charAt(k));
+                    if (font.width(sb.toString()) + tailW > nameMaxW) break;
+                }
+                shown = tail + sb;
+            }
+            g.drawString(font, shown, left + 12, y + 6, i == selectedFile ? 0xFFFFFF : 0xC9D1D9);
             y += 20;
         }
         if (files.isEmpty())
