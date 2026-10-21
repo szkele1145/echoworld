@@ -1,0 +1,13 @@
+// Forge 模块独立构建（不加入根 settings.gradle）：
+// ForgeGradle 6 不支持 Gradle 9.x，而根项目用的是 Gradle 9.4.1。
+// 必须在 forge-1.19.4 目录下用 Gradle 8.x 单独构建：
+//   D:\tools\gradle-8.10.2\bin\gradle.bat build
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net' }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'worldreplay-forge-1.19.4'
