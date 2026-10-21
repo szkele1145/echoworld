@@ -255,10 +255,18 @@ public final class RecordControlHandler {
     /** 文件名安全校验：拒绝路径分隔符 / .. / 空名（目录穿越防护，列表与重命名共用）。 */
     static boolean isSafeFileName(String name) {
         if (name == null || name.isEmpty() || name.length() > 128) return false;
-        if (name.contains("/") || name.contains("\\") || name.contains("..")) return false;
-        return !name.contains(":") && !name.contains("*") && !name.contains("?")
-                && !name.contains("\"") && !name.contains("<") && !name.contains(">")
-                && !name.contains("|");
+        if (name.contains("/") || name.contains("\\")) return false;
+        if (name.equals(".") || name.equals("..")) return false;
+        if (name.contains("..")) return false;   // 任何位置的 ".." 都拒绝
+        if (name.contains("\0")) return false;
+        if (name.contains(":") || name.contains("*") || name.contains("?")
+                || name.contains("\"") || name.contains("<") || name.contains(">")
+                || name.contains("|")) return false;
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c < 0x20 || c == 0x7F) return false;   // 控制字符
+        }
+        return true;
     }
 
     /**
