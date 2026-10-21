@@ -19,7 +19,7 @@ public final class CoreSelfTest {
 
     private static int failures = 0;
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         replaySeekThenPlay();
         replayStopThenReplay();
         replaySpeedClamp();
@@ -32,6 +32,8 @@ public final class CoreSelfTest {
         codecRoundTrip();
         codecOversizedTruncation();
         eventNullDimensionFallback();
+        eventRejectsNonFiniteCoords();
+        sessionConcurrentAppendAndExport();
         decoderSkipsInvalid();
         eventCounterCountsAndCaches();
 
@@ -220,6 +222,61 @@ public final class CoreSelfTest {
         Event e = new Event(1, "block_place", "p", null, 0, 0, 0, null);
         check("null维度兜底", "minecraft:overworld".equals(e.dimension()));
         check("null data兜底", "{}".equals(e.data()));
+    }
+
+    /**
+     * 坐标必须是有限值：NaN / Infinity 判定为无效事件。
+     *
+     * <p>NaN 坐标会让客户端矩阵变换整体变成 NaN，结果是一整片区块不渲染，
+     * 且很难查。.wrp 可以是手工构造的，不能假设坐标合理。</p>
+     */
+    static void eventRejectsNonFiniteCoords() {
+        check("正常坐标有效", new Event(1, "t", "p", "d", 0, 0, 0, "{}").isValid());
+        check("NaN x 无效",
+                !new Event(1, "t", "p", "d", Double.NaN, 0, 0, "{}").isValid());
+        check("NaN y 无效",
+                !new Event(1, "t", "p", "d", 0, Double.NaN, 0, "{}").isValid());
+        check("NaN z 无效",
+                !new Event(1, "t", "p", "d", 0, 0, Double.NaN, "{}").isValid());
+        check("Infinity x 无效",
+                !new Event(1, "t", "p", "d", Double.POSITIVE_INFINITY, 0, 0, "{}").isValid());
+        check("-Infinity z 无效",
+                !new Event(1, "t", "p", "d", 0, 0, Double.NEGATIVE_INFINITY, "{}").isValid());
+        // 负坐标是合法的（世界有负坐标区域），不能误杀
+        check("负坐标有效", new Event(1, "t", "p", "d", -100, -64, -200, "{}").isValid());
+    }
+
+    /**
+     * 并发 append 与 export 不抛 ConcurrentModificationException。
+     *
+     * <p>Fabric 的 DISCONNECT 回调可能落在网络线程，与主线程的 append
+     * 同时发生。旧实现用裸 ArrayList，导出时会撞上正在被修改的列表。</p>
+     */
+    static void sessionConcurrentAppendAndExport() throws Exception {
+        RecordingSession s = RecordingSession.start(0, "concurrent");
+        int n = 400;
+        Thread writer = new Thread(() -> {
+            for (int i = 0; i < n; i++) {
+                // 必须 >= 0 且坐标有限，否则被 append 拒掉（不影响本测试目的）
+                s.append(new Event(i % 50, "e", "p", "d", i, 0, 0, "{}"));
+            }
+        });
+        Thread reader = new Thread(() -> {
+            for (int i = 0; i < 100; i++) {
+                try {
+                    s.export();
+                } catch (java.util.ConcurrentModificationException cme) {
+                    throw new RuntimeException("并发导出撞上修改", cme);
+                } catch (java.io.IOException ignored) {
+                }
+            }
+        });
+        writer.start();
+        reader.start();
+        writer.join(10_000);
+        reader.join(10_000);
+        check("并发 append/export 无异常", true);
+        check("并发后事件数正确", s.eventCount() == n, "got=" + s.eventCount());
     }
 
     /** 解码器跳过无效事件（tick<0 / type 空）返回 null。 */

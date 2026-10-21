@@ -35,8 +35,13 @@ public record Event(long tick, String type, String playerId, String dimension,
         }
     }
 
-    /** 校验事件是否有效：tick 非负且 type 非空。 */
+    /** 校验事件是否有效：tick 非负、type 非空、坐标不是 NaN/Infinity。 */
     public boolean isValid() {
-        return tick >= 0 && !type.isEmpty();
+        if (tick < 0 || type.isEmpty()) return false;
+        // 坐标必须是有限值：NaN/Infinity 会让客户端的矩阵变换整个变成 NaN，
+        // 结果是一整片区块不渲染（而且很难查）。.wrp 可以是手工构造的，
+        // 不能假设坐标一定合理。
+        return !Double.isNaN(x) && !Double.isNaN(y) && !Double.isNaN(z)
+                && !Double.isInfinite(x) && !Double.isInfinite(y) && !Double.isInfinite(z);
     }
 }

@@ -9,8 +9,13 @@ import java.util.List;
 /**
  * 录制会话：从 startRecord 到 stopRecord 之间捕获的所有事件的容器。
  *
- * <p>非线程安全，单写者语义：事件追加只允许发生在服务端主线程
- * （或录制线程）上，读取方在会话停止后进行。</p>
+ * <p><b>线程安全</b>：事件追加与服务端控制的 {@link #stopRecord} /
+ * {@link #export} <b>可能来自不同线程</b>——
+ * NeoForge 的退服事件在主线程，而 Fabric 的 {@code DISCONNECT} 回调
+ * 可能落在网络线程。旧实现用裸 {@code ArrayList} 且注释写"单写者语义"，
+ * 但实际并发下 {@code export()} 遍历时主线程 {@code append} 会抛
+ * {@link java.util.ConcurrentModificationException}，或者导出到写了一半的状态。
+ * 现在所有访问都经 {@code synchronized} 保护。</p>
  */
 public class RecordingSession {
 
@@ -31,8 +36,8 @@ public class RecordingSession {
         return new RecordingSession(currentTick, sessionId);
     }
 
-    /** 追加一条事件；无效事件（tick<0 或 type 空）被忽略。 */
-    public boolean append(Event event) {
+    /** 追加一条事件；无效事件（tick<0 / type 空 / 坐标非有限值）被忽略。 */
+    public synchronized boolean append(Event event) {
         if (!recording || event == null || !event.isValid()) {
             return false;
         }
@@ -41,24 +46,24 @@ public class RecordingSession {
     }
 
     /** 停止录制，返回已捕获的事件数。 */
-    public int stopRecord(long currentTick) {
+    public synchronized int stopRecord(long currentTick) {
         recording = false;
         endTick = currentTick;
         return events.size();
     }
 
     /** 是否仍在录制。 */
-    public boolean isRecording() {
+    public synchronized boolean isRecording() {
         return recording;
     }
 
     /** 已捕获事件数。 */
-    public int eventCount() {
+    public synchronized int eventCount() {
         return events.size();
     }
 
     /** 会话时长（tick）；未停止时以最后一条事件的 tick 近似（O(1)：事件严格非降序）。 */
-    public long durationTicks() {
+    public synchronized long durationTicks() {
         if (endTick >= 0) {
             return Math.max(0, endTick - startTick);
         }
@@ -79,7 +84,7 @@ public class RecordingSession {
     }
 
     /** 事件只读快照。 */
-    public List<Event> events() {
+    public synchronized List<Event> events() {
         return List.copyOf(events);
     }
 
@@ -90,7 +95,7 @@ public class RecordingSession {
      * <p>未调用 {@link #stopRecord(long)} 时仍可导出已捕获的事件，但 {@code endTick} 为 -1，
      * 下游消费者应自行判断（durationTicks() 已对未停止状态做近似处理）。</p>
      */
-    public byte[] export() throws IOException {
+    public synchronized byte[] export() throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream(64 + events.size() * 96);
         DataOutputStream out = new DataOutputStream(bos);
         EventEncoder.writeHeader(out);
