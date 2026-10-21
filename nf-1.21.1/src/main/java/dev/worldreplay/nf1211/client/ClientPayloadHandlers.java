@@ -54,6 +54,16 @@ public final class ClientPayloadHandlers {
     private static final long MAX_RECORDING_BYTES = 480L * 1024 * 1024;
 
     /**
+     * 单次回放允许的事件数上限。
+     *
+     * <p>解码后的 {@link Event} 对象每个约 100 字节（对象头 + 8 个引用 +
+     * 3 个 double + 字符串），50 万条约 50 MB，200 万条约 200 MB。
+     * 上限定在 200 万：正常录制远小于此，超出则截断并告警，
+     * 避免客户端被一份畸形录制拖到 OOM。</p>
+     */
+    private static final int MAX_EVENTS = 2_000_000;
+
+    /**
      * S2C OpenRecordLibrary：/wr gui 的开屏信号。
      *
      * <p>只置标志、不直接开屏——真正的界面构建发生在紧随其后的 {@link #handleRecordList}
@@ -110,7 +120,17 @@ public final class ClientPayloadHandlers {
                 List<Event> events = new ArrayList<>();
                 while (in.available() > 0) {
                     Event ev = EventDecoder.readFrom(in);
-                    if (ev != null) events.add(ev);
+                    if (ev != null) {
+                        // 事件数上限：480 MiB 的录制可能有上千万条事件，
+                        // 每个 Event 对象约 100 字节——全装进 List 就是 GB 级，
+                        // 客户端直接 OOM。超出上限就停在这一份（前半段可看）。
+                        if (events.size() >= MAX_EVENTS) {
+                            LOGGER.warn("[WorldReplay] Recording {} has more than {} events, truncated",
+                                    fileName, MAX_EVENTS);
+                            break;
+                        }
+                        events.add(ev);
+                    }
                 }
                 if (events.isEmpty()) {
                     LOGGER.warn("[WorldReplay] Recording {} has no valid events", fileName);

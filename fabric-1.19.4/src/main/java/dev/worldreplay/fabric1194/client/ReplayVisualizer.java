@@ -141,15 +141,30 @@ public final class ReplayVisualizer {
                 return;
             }
             int count = 0;
+            int skipped = 0;
             dev.worldreplay.core.event.Event ev;
-            while ((ev = dev.worldreplay.core.event.EventDecoder.readFrom(in)) != null) {
+            // 注意：readFrom 返回 null 表示"这一条无效"（tick<0 / type 空 /
+            // 坐标非有限值），不是"流结束"。原来的循环条件写成 != null，
+            // 于是遇到第一条无效事件就整体退出——后面所有事件都不播了。
+            // 流结束由 IOException（EOFException）表示，这里靠 catch 收尾。
+            while (true) {
+                try {
+                    ev = dev.worldreplay.core.event.EventDecoder.readFrom(in);
+                } catch (java.io.EOFException eof) {
+                    break;   // 正常流结束
+                }
+                if (ev == null) {
+                    skipped++;
+                    continue;   // 跳过这一条，继续读下一条
+                }
                 count++;
                 MinecraftClient.getInstance().player.sendMessage(
                         Text.literal("[WorldReplay] t" + ev.tick() + " " + ev.type()
                                 + " @ " + String.format("%.1f %.1f %.1f", ev.x(), ev.y(), ev.z())),
                         false);
             }
-            sendClientMessage("[WorldReplay] 回放完成: " + fileName + " 共 " + count + " 个事件");
+            sendClientMessage("[WorldReplay] 回放完成: " + fileName + " 共 " + count + " 个事件"
+                    + (skipped > 0 ? "（跳过 " + skipped + " 条无效事件）" : ""));
         } catch (Exception ex) {
             sendClientMessage("[WorldReplay] 回放失败: " + ex.getMessage());
         }
