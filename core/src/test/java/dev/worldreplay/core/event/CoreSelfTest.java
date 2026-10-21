@@ -36,6 +36,7 @@ public final class CoreSelfTest {
         sessionConcurrentAppendAndExport();
         decoderSkipsInvalid();
         eventCounterCountsAndCaches();
+        eventCounterMatchesDecoder();
 
         if (failures > 0) {
             System.err.println("FAILED: " + failures + " test(s)");
@@ -344,6 +345,57 @@ public final class CoreSelfTest {
         }
         out.flush();
         return bos.toByteArray();
+    }
+
+    /**
+     * EventCounter 的计数必须与 EventDecoder 实际能解出的条数一致。
+     *
+     * <p>不一致的话，GUI 上显示的事件数就和实际能回放的数量对不上——
+     * 用户会以为录了 100 条结果只播了 98 条。</p>
+     */
+    static void eventCounterMatchesDecoder() throws IOException {
+        java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("wr-counter2");
+        try {
+            java.nio.file.Path f = dir.resolve("mixed.wrp");
+            // 3 条有效 + 2 条无效（NaN 坐标、负 tick）
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream out = new java.io.DataOutputStream(bos);
+            EventEncoder.writeHeader(out);
+            for (int i = 0; i < 3; i++) {
+                EventEncoder.writeTo(new Event(i, "block_break", "p1",
+                        "minecraft:overworld", i, 0, 0, "{}"), out);
+            }
+            EventEncoder.writeTo(new Event(10, "bad", "p1",
+                    "minecraft:overworld", Double.NaN, 0, 0, "{}"), out);
+            EventEncoder.writeTo(new Event(-1, "bad", "p1",
+                    "minecraft:overworld", 0, 0, 0, "{}"), out);
+            out.flush();
+            java.nio.file.Files.write(f, bos.toByteArray());
+
+            // 解码器实际能解出的条数
+            int decoded = 0;
+            try (java.io.DataInputStream in = new java.io.DataInputStream(
+                    new java.io.ByteArrayInputStream(bos.toByteArray()))) {
+                EventDecoder.readHeader(in);
+                while (in.available() > 0) {
+                    Event ev = EventDecoder.readFrom(in);
+                    if (ev != null) decoded++;
+                }
+            }
+            check("解码器解出3条", decoded == 3, "got=" + decoded);
+
+            EventCounter.clearCache();
+            int counted = EventCounter.countEvents(f);
+            check("计数与解码一致", counted == decoded,
+                    "counted=" + counted + " decoded=" + decoded);
+        } finally {
+            try (var s = java.nio.file.Files.list(dir)) {
+                for (var p : (Iterable<java.nio.file.Path>) s::iterator) {
+                    java.nio.file.Files.deleteIfExists(p);
+                }
+            }
+            java.nio.file.Files.deleteIfExists(dir);
+        }
     }
 
     // ---- 工具 ----

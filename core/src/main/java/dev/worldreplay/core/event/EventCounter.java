@@ -78,6 +78,14 @@ public final class EventCounter {
      *
      * <p>遇到截断/损坏直接抛 {@link IOException} 由上层处理——不能"尽力数到
      * 文件末尾"：那会把错位读到的字节解释成天文数字的事件数。</p>
+     *
+     * <p><b>计的是"有效事件数"</b>，与 {@link EventDecoder#readFrom} 同一口径：
+     * tick&lt;0 / type 空 / 坐标非有限值的事件都要跳过。原来这里只跳字段
+     * 一律计数，于是 GUI 上显示的条数比实际能回放的条数多
+     * （实测 5 vs 3）。</p>
+     *
+     * <p>仍然不构造 {@link Event} 对象——那才是耗时的大头（8 个引用 + 多个
+     * 字符串），判断有效性只需要几个原始值。</p>
      */
     private static int scan(Path file) throws IOException {
         try (DataInputStream in = new DataInputStream(
@@ -87,18 +95,39 @@ public final class EventCounter {
             }
             int count = 0;
             while (in.available() > 0) {
-                in.readLong();              // tick
-                skipUtf(in);                 // type
+                long tick = in.readLong();
+                boolean typeNonEmpty = readUtfNonEmpty(in);
                 skipUtf(in);                 // playerId
                 skipUtf(in);                 // dimension
-                in.readDouble();             // x
-                in.readDouble();             // y
-                in.readDouble();             // z
+                double x = in.readDouble();
+                double y = in.readDouble();
+                double z = in.readDouble();
                 skipUtf(in);                 // data
-                count++;
+                // 与 Event.isValid() 同一套判定
+                if (tick >= 0 && typeNonEmpty
+                        && !Double.isNaN(x) && !Double.isNaN(y) && !Double.isNaN(z)
+                        && !Double.isInfinite(x) && !Double.isInfinite(y) && !Double.isInfinite(z)) {
+                    count++;
+                }
             }
             return count;
         }
+    }
+
+    /**
+     * 跳过一个 UTF 字段，同时回报它是不是空串。
+     *
+     * <p>只需要"空/非空"这个信息，不需要内容——{@code writeUTF} 用的是
+     * modified UTF-8，长度 0 就一定是空串，不必解码（省掉一次字符串分配）。</p>
+     */
+    private static boolean readUtfNonEmpty(DataInputStream in) throws IOException {
+        int len = in.readUnsignedShort();
+        if (len == 0) return false;
+        int skipped = in.skipBytes(len);
+        if (skipped != len) {
+            throw new EOFException("truncated string field");
+        }
+        return true;
     }
 
     /**
