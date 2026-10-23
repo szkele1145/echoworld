@@ -1,6 +1,7 @@
-param([string]$Version)
+﻿param([string]$Version)
 $ErrorActionPreference = 'Stop'
-$tok = 'mrp_HhdbSQhqUdMNWM4Gl6nEpt6Oz2bIVVvXdQMnqgoayoVHdNGUaB1kbUv3Cn47'
+$tok = $env:MODRINTH_TOKEN
+if (-not $tok) { throw "缺少环境变量 MODRINTH_TOKEN（勿把密钥写进仓库）" }
 $projId = 'SvKPzm09'
 # 中文路径在子进程编码链路会坏——先 cd 到工程目录再用相对路径
 Set-Location 'F:\vibe coding工程\sfx\worldreplay\nf-1.21.1'

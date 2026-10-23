@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)][string]$Version,
     [Parameter(Mandatory = $true)][string]$Changelog,
     [string]$JarPath,
@@ -6,7 +6,8 @@ param(
     [string[]]$Loaders = @('neoforge')
 )
 $ErrorActionPreference = 'Stop'
-$tok = 'mrp_HhdbSQhqUdMNWM4Gl6nEpt6Oz2bIVVvXdQMnqgoayoVHdNGUaB1kbUv3Cn47'
+$tok = $env:MODRINTH_TOKEN
+if (-not $tok) { throw "缺少环境变量 MODRINTH_TOKEN（勿把密钥写进仓库）" }
 
 # Infer JarPath when not given (keeps old call style working).
 if (-not $JarPath) {

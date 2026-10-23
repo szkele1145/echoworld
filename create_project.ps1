@@ -1,5 +1,6 @@
-param()
-$mr = 'mrp_HhdbSQhqUdMNWM4Gl6nEpt6Oz2bIVVvXdQMnqgoayoVHdNGUaB1kbUv3Cn47'
+﻿param()
+$mr = $env:MODRINTH_TOKEN
+if (-not $mr) { throw "缺少环境变量 MODRINTH_TOKEN（勿把密钥写进仓库）" }
 $proj = [ordered]@{
     slug = 'echoworld'
     title = 'EchoWorld'
