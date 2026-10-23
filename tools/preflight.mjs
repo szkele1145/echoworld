@@ -98,6 +98,53 @@ for (const mod of modDirs) {
     });
   }
 
+  // ---------- 5. 录制文件名校验（路径穿越防护） ----------
+  // 只在模块确实有"录制文件"概念时检查（WorldReplay）。判定方式：源码里出现
+  // recordings 目录的拼接。若存在，则要求文件名校验方法同时挡住 .. 和分隔符。
+  {
+    let hasRecordings = false;
+    let guardBody = null;
+    let guardName = null;
+    for (const f of walk(src)) {
+      const t = fs.readFileSync(f, 'utf8');
+      if (/recordings/.test(t)) hasRecordings = true;
+      // 找形如 xxxName(String ...) 返回 boolean 的校验方法（名字各平台不同）
+      // 可见性可能是 public / private / 包级（三者都见过）
+      const m = t.match(/(?:(?:public|private|protected)\s+)?static\s+boolean\s+(\w*[Nn]ame\w*)\s*\(\s*String[^)]*\)\s*\{/);
+      if (m && /\.\.|contains\("\/"\)|contains\("\\\\"\)/.test(t.slice(m.index, m.index + 1200))) {
+        const start = m.index + m[0].length;
+        let depth = 1, i = start;
+        while (i < t.length && depth > 0) {
+          if (t[i] === '{') depth++;
+          else if (t[i] === '}') depth--;
+          i++;
+        }
+        guardBody = t.slice(start, i - 1);
+        guardName = m[1];
+        break;
+      }
+    }
+    if (hasRecordings) {
+      if (!guardBody) {
+        problems.push({
+          mod, what: '有录制目录逻辑，但找不到文件名校验方法',
+          why: '删除/重命名/回放都按玩家提供的文件名拼路径，不校验就是目录穿越',
+          fix: '加一个 isSafeFileName：拒绝 ..、/、\\、空名；极端平台再加 normalize 双保险',
+        });
+      } else {
+        const hasDots = /\.\./.test(guardBody);
+        const hasSep = /contains\("\/"\)|contains\("\\\\"\)|indexOf\('\/'\)/.test(guardBody);
+        if (!hasDots || !hasSep) {
+          problems.push({
+            mod, what: `${guardName} 的路径穿越防护不完整（缺 ${!hasDots ? "'..'" : ''}${!hasDots && !hasSep ? ' 和 ' : ''}${!hasSep ? '分隔符' : ''}）`,
+            why: '玩家可构造 "../../server.properties" 之类的文件名，越出 recordings 目录',
+            fix: '补上 .. 与 / \\ 的拒绝',
+          });
+        }
+      }
+    }
+  }
+
   // ---------- 信息性：总线标注与订阅类型 ----------
   if (!isFabric) {
     for (const f of walk(src)) {
