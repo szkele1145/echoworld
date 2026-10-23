@@ -114,9 +114,49 @@ for (const mod of modDirs) {
       busReport.push({ mod, cls: base, buses: [...new Set(buses)], subs });
     }
   }
-}
+  // ---------- 4. mixin 注入点写法 ----------
+  // 两种真实事故：
+  //   a) remap=false（目标第三方 mod）+ 描述符里写编译期的 Minecraft 类名
+  //      -> 描述符不重映射，Fabric 运行时是 intermediary 名，永远匹配不上
+  //   b) 描述符用点号（net.minecraft.client.gui.GuiGraphics）而不是 JVM 内部名
+  //      -> Mixin 解析不出方法签名，注入失败
+  // 两种都在 defaultRequire: 0 下静默回滚。最稳的写法：只写方法名。
+  for (const f of walk(src)) {
+    const t = fs.readFileSync(f, 'utf8');
+    const mixin = t.match(/@Mixin\(([^)]*)\)/);
+    if (!mixin) continue;
+    const remapFalse = /remap\s*=\s*false/.test(mixin[1]);
+    const base = path.basename(f, '.java');
 
-// ---------- 输出 ----------
+    for (const m of t.matchAll(/@Inject\(\s*method\s*=\s*"([^"]+)"/g)) {
+      const method = m[1];
+      if (!method.includes('(')) continue;   // 只写方法名 = 安全写法
+
+      // b) 点号描述符
+      if (/\b[a-z]+(\.[a-z0-9]+)+\.[A-Z]\w*;/.test(method)) {
+        problems.push({
+          mod, what: `${base} 的注入描述符用了点号（${method.slice(0, 60)}…）`,
+          why: 'JVM 方法描述符要求内部名（斜杠分隔），点号形式 Mixin 解析不出方法，注入静默失败',
+          fix: '改成 @Inject(method = "方法名", ...)；目标有重载时才需要描述符，且必须用斜杠内部名',
+        });
+        continue;
+      }
+
+      // a) remap=false + 描述符里含 Minecraft 类名
+      if (remapFalse && /L(net\/minecraft|com\/mojang)\//.test(method)) {
+        if (isFabric) {
+          problems.push({
+            mod, what: `${base} 是 remap=false 却在描述符里写了编译期的 Minecraft 类名`,
+            why: 'remap=false 时描述符不重映射；Fabric 运行时是 intermediary 名，注入永远匹配不上',
+            fix: '改成只写方法名（目标无重载时），由 knot 统一映射参数类型',
+          });
+        }
+        // Forge 运行时类名就是 mojmap，理论上能匹配，不报错
+      }
+    }
+  }
+
+}
 console.log(`预检: ${root}`);
 console.log(`模块: ${modDirs.join(', ')}`);
 console.log('');
