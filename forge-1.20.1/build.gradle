@@ -3,17 +3,13 @@ plugins {
     id 'net.minecraftforge.gradle' version '6.0.54'
 }
 
-version = '0.3.6'
+version = '0.3.7'
 group = 'dev.worldreplay'
 base { archivesName = 'worldreplay' }
 
-// 注意：本模块不能加进根 settings.gradle ——
-// ForgeGradle 6 不支持 Gradle 9.x（"Versions Gradle 9.0 and newer are not supported yet"），
-// 而根项目用的是 Gradle 9.4.1。Forge 模块必须用 Gradle 8.x 单独构建：
-//   D:\tools\gradle-8.10.2\bin\gradle.bat build
-// （Gradle 必须装在没有空格的路径下，否则 worker daemon 的 classpath 会被截断，
-//  报 ClassNotFoundException: SystemApplicationClassLoaderWorker）
-
+// 注意：本模块不能加进?settings.gradle —?// ForgeGradle 6 不支?Gradle 9.x?Versions Gradle 9.0 and newer are not supported yet"），
+// 而根项目用的?Gradle 9.4.1。Forge 模块必须?Gradle 8.x 单独构建?//   D:\tools\gradle-8.10.2\bin\gradle.bat build
+// （Gradle 必须装在没有空格的路径下，否?worker daemon ?classpath 会被截断?//  ?ClassNotFoundException: SystemApplicationClassLoaderWorker?
 minecraft {
     mappings channel: 'official', version: '1.20.1'
     copyIdeResources = true
@@ -21,7 +17,7 @@ minecraft {
     runs {
         client { }
         server {
-            // FG6 的 RunConfig 用 args 块，不是 programArgument
+            // FG6 ?RunConfig ?args 块，不是 programArgument
             args '--nogui'
         }
     }
@@ -33,9 +29,7 @@ repositories {
 
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.28'
-    // core 是纯 Java（零依赖）。把它的源码目录直接并进本模块的源集：
-    // 这样 core 的类会被打进最终的 jar，用户不需要额外装依赖。
-    // （不用 Gradle project 依赖：ForgeGradle 6 与 Gradle 8 的 composite build 兼容性差。）
+    // core 是纯 Java（零依赖）。把它的源码目录直接并进本模块的源集?    // 这样 core 的类会被打进最终的 jar，用户不需要额外装依赖?    // （不?Gradle project 依赖：ForgeGradle 6 ?Gradle 8 ?composite build 兼容性差。）
 }
 
 sourceSets {

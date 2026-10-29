@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.78'
 }
 
-version = '0.3.6'
+version = '0.3.7'
 group = 'dev.worldreplay'
 base { archivesName = 'worldreplay' }
 
@@ -30,11 +30,11 @@ neoForge {
 }
 
 dependencies {
-    // shadow 进 jar：core 类必须打进 mod jar（运行时 classpath 不含 Gradle 项目依赖）
+    // shadow ?jar：core 类必须打?mod jar（运行时 classpath 不含 Gradle 项目依赖?
     implementation project(':core')
 }
 
-// dev run 与 jar 共用：把 core 编译输出复制进本模块 classes（进 mod 边界，dev run 能加载）
+// dev run ?jar 共用：把 core 编译输出复制进本模块 classes（进 mod 边界，dev run 能加载）
 tasks.register('copyCoreClasses', Copy) {
     from(project(':core').sourceSets.main.output)
     into(layout.buildDirectory.dir('classes/java/main'))

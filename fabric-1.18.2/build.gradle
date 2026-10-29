@@ -1,9 +1,9 @@
 plugins {
     id 'java-library'
-    id 'fabric-loom' version '1.9.2'
+    id 'fabric-loom' version '1.12.1'
 }
 
-version = '0.3.6'
+version = '0.3.7'
 group = 'dev.worldreplay'
 base { archivesName = 'worldreplay' }
 

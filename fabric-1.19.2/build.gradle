@@ -1,9 +1,9 @@
 plugins {
     id 'java-library'
-    id 'fabric-loom' version '1.9.2'
+    id 'fabric-loom' version '1.12.1'
 }
 
-version = '0.3.6'
+version = '0.3.7'
 group = 'dev.worldreplay'
 base { archivesName = 'worldreplay' }
 
@@ -18,18 +18,18 @@ dependencies {
     modImplementation 'net.fabricmc.fabric-api:fabric-api:0.77.0+1.19.2'
     implementation project(':core')
     // Mixin：Fabric API 没有"方块放置"事件，只能钩 BlockItem.postPlacement 补齐
-    // （否则 Fabric 版回放里只有"使用"标记、没有"放置"标记）
-    modImplementation 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
+    // （否?Fabric 版回放里只有"使用"标记、没?放置"标记?
+modImplementation 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
 }
 
-// Mixin 配置：refmap 名称（Fabric 侧不需要它，但 loom 要求显式声明）
+// Mixin 配置：refmap 名称（Fabric 侧不需要它，但 loom 要求显式声明?
 loom {
     mixin {
         defaultRefmapName = 'worldreplay.refmap.json'
     }
 }
 
-// dev run 与 jar 共用：把 core 编译输出复制进本模块 classes（进 mod 边界，dev run 能加载）
+// dev run ?jar 共用：把 core 编译输出复制进本模块 classes（进 mod 边界，dev run 能加载）
 tasks.register('copyCoreClasses', Copy) {
     from(project(':core').sourceSets.main.output)
     into(layout.buildDirectory.dir('classes/java/main'))
@@ -40,7 +40,7 @@ tasks.named('jar') {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-// Loom 交付的主产物是 remapJar，产物名在这里定
+// Loom 交付的主产物?remapJar，产物名在这里定
 tasks.named('remapJar') {
     archiveFileName = "worldreplay-${version}-1.19.2-fabric.jar"
 }
